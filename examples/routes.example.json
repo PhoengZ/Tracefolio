@@ -1,0 +1,95 @@
+{
+  "schema_version": "1.0.0",
+  "state_dir_env": "TRACEFOLIO_STATE_DIR",
+  "owner": {
+    "author_emails_env": "TRACEFOLIO_AUTHOR_EMAILS"
+  },
+  "privacy": {
+    "redact_values_env": "TRACEFOLIO_REDACT_VALUES"
+  },
+  "limits": {
+    "max_commits_per_run": 200,
+    "max_diff_bytes_per_commit": 524288,
+    "max_text_file_bytes": 131072,
+    "max_notebook_bytes": 8388608,
+    "max_packet_bytes": 2097152,
+    "max_files_per_source": 2000,
+    "max_total_source_bytes": 16777216
+  },
+  "projects": [
+    {
+      "project_id": "demo-ingestion",
+      "title": "Incremental Ingestion Pipeline",
+      "context": "Synthetic example: investigate ingestion reliability and data quality. Actual routes and descriptions belong in private configuration.",
+      "enabled": true,
+      "sources": [
+        {
+          "source_id": "pipeline-code",
+          "kind": "local_git",
+          "root_env": "TRACEFOLIO_PIPELINE_ROOT",
+          "ref": "HEAD",
+          "include_paths": [
+            "README.md",
+            "src/**",
+            "tests/**"
+          ],
+          "exclude_paths": [
+            "generated/**"
+          ],
+          "work_units": [
+            {
+              "work_id": "incremental-sync",
+              "context": "Investigate checkpointing, retries, and duplicate handling.",
+              "include_paths": [
+                "src/ingestion/**",
+                "tests/ingestion/**"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "demo-analytics",
+      "title": "Analytics Work Notes",
+      "context": "Synthetic example: investigate approved text notes; authorship and outcomes need evidence.",
+      "enabled": true,
+      "sources": [
+        {
+          "source_id": "analytics-notes",
+          "kind": "local_directory",
+          "root_env": "TRACEFOLIO_ANALYTICS_ROOT",
+          "include_paths": [
+            "*.md",
+            "notes/**/*.md",
+            "queries/**/*.sql"
+          ],
+          "exclude_paths": [],
+          "work_units": []
+        }
+      ]
+    },
+    {
+      "project_id": "demo-service",
+      "title": "Public Service Repository",
+      "context": "Synthetic example: inspect a public GitHub repository. Repository visibility does not establish personal contribution.",
+      "enabled": true,
+      "sources": [
+        {
+          "source_id": "service-code",
+          "kind": "github_public",
+          "repository_env": "TRACEFOLIO_SERVICE_REPOSITORY",
+          "ref": "default",
+          "include_paths": [
+            "README.md",
+            "src/**",
+            "tests/**"
+          ],
+          "exclude_paths": [],
+          "work_units": []
+        }
+      ]
+    }
+  ]
+}
+
