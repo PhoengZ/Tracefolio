@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import re
@@ -106,7 +107,8 @@ def load_config_set(config_paths: list[Path]) -> ResolvedConfig:
     private_values = [str(state), *(str(p) for p in paths)]
     identities = _array(registry.owner.author_emails_env)
     private_values.extend(identities)
-    private_values.extend(_array(registry.privacy.redact_values_env, min_length=4))
+    extra_redactions = _array(registry.privacy.redact_values_env, min_length=4)
+    private_values.extend(extra_redactions)
     source_roots = []
     for project in projects:
         if not project.enabled:
@@ -128,7 +130,9 @@ def load_config_set(config_paths: list[Path]) -> ResolvedConfig:
         if (state.is_relative_to(root) or root.is_relative_to(state)
                 or any(p.is_relative_to(root) for p in paths)):
             raise TracefolioError("unsafe_root")
-    policy = PrivacyPolicy(tuple(v for v in private_values if v))
+    epoch = "redaction-v1-" + hashlib.sha256(
+        json.dumps(sorted(extra_redactions)).encode()).hexdigest()
+    policy = PrivacyPolicy(tuple(v for v in private_values if v), epoch)
     return ResolvedConfig(registry, state, paths, locators, policy,
                           frozenset(v.casefold() for v in identities))
 

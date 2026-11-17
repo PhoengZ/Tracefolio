@@ -55,11 +55,14 @@ def evidence(request: SourceRequest, revision: str, path: str | None, payload: s
              ) -> EvidenceRecord:
     clean = sanitize_text(payload, request.policy)
     safe_path = sanitize_text(path, request.policy).text if path else None
-    body = dict(project_id=request.project_id, source_id=request.source.source_id,
-                origin=origin, revision=revision, source_relative_path=safe_path,
-                payload=clean.text, attribution=attribution,
-                normalization=normalization, cells=cells or [])
-    hashed = digest(body)
-    return EvidenceRecord(evidence_id="ev-" + hashed, content_digest=hashed,
-                          redactions=clean.redactions, **body)
+    body = {"project_id": request.project_id, "source_id": request.source.source_id,
+            "origin": origin, "revision": revision, "source_relative_path": safe_path,
+            "payload": clean.text, "attribution": attribution,
+            "normalization": normalization, "cells": cells or []}
+    record = EvidenceRecord(evidence_id="pending", content_digest="pending",
+                            redactions=clean.redactions, **body)
+    hashed = digest(record.model_dump(mode="json", exclude={"evidence_id", "content_digest"}))
+    record.evidence_id = "ev-" + hashed
+    record.content_digest = hashed
+    return record
 

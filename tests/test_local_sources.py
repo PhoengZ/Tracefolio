@@ -1,6 +1,5 @@
 import json
 import subprocess
-from pathlib import Path
 
 import pytest
 
@@ -105,7 +104,7 @@ def test_merge_resolution_delta_is_retained_as_context(repo):
     commit(repo, "value = 2\n", "feature")
     git(repo, "checkout", "-q", "main")
     commit(repo, "value = 3\n", "main")
-    subprocess.run(["git", "-C", str(repo), "merge", "feature"], capture_output=True)
+    subprocess.run(["git", "-C", str(repo), "merge", "feature"], capture_output=True, check=False)
     commit(repo, "resolved_checkpoint = 4\n", "merge resolution")
     result = LocalGitProvider().collect_source(request(repo), None)
     assert any("merge_context" in e.payload and "resolved_checkpoint" in e.payload

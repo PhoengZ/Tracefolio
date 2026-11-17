@@ -11,6 +11,7 @@ from .errors import TracefolioError
 @dataclass(frozen=True)
 class PrivacyPolicy:
     literals: tuple[str, ...] = ()
+    epoch: str = "redaction-v1"
 
 
 @dataclass(frozen=True)
@@ -68,9 +69,9 @@ def mandatory_allowed(path: str) -> bool:
         low = part.lower()
         if low in denied_dirs or (part.startswith(".") and low not in allowed_hidden):
             return False
-        if (low.startswith(".env") or low.endswith((".env", ".pem", ".key", ".p12", ".pfx"))
+        if (low.startswith(".env") or low.endswith((".env", ".pem", ".key", ".p12", ".pfx", ".bak", ".bak1"))
                 or low in {"credentials.json", "credentials", "key.md", "id_rsa", "id_ed25519"}
-                or "recovery-code" in low or low.endswith((".bak", ".bak1"))):
+                or "recovery-code" in low):
             return False
     return True
 
@@ -111,9 +112,17 @@ def secure_private_root(path: Path) -> None:
 $ErrorActionPreference='Stop'
 $p=$env:TRACEFOLIO_ACL_TARGET
 $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User
-$acl=New-Object Security.AccessControl.DirectorySecurity
-$acl.SetOwner($sid)
+$acl=Get-Acl -LiteralPath $p
+if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $sid.Value) { throw 'State directory must be owned by current user' }
+$rules=@($acl.Access)
+$alreadyPrivate=$acl.AreAccessRulesProtected -and $rules.Count -eq 1
+if ($alreadyPrivate) {
+  $r=$rules[0]
+  $alreadyPrivate=($r.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -eq $sid.Value) -and ($r.AccessControlType -eq 'Allow') -and (($r.FileSystemRights -band [Security.AccessControl.FileSystemRights]::FullControl) -eq [Security.AccessControl.FileSystemRights]::FullControl) -and ($r.PropagationFlags -eq 'None') -and (($r.InheritanceFlags -band [Security.AccessControl.InheritanceFlags]::ContainerInherit) -ne 0) -and (($r.InheritanceFlags -band [Security.AccessControl.InheritanceFlags]::ObjectInherit) -ne 0)
+}
+if ($alreadyPrivate) { exit 0 }
 $acl.SetAccessRuleProtection($true,$false)
+foreach ($existingRule in @($acl.Access)) { $acl.RemoveAccessRuleSpecific($existingRule) }
 $rule=New-Object Security.AccessControl.FileSystemAccessRule($sid,'FullControl','ContainerInherit,ObjectInherit','None','Allow')
 $acl.AddAccessRule($rule)
 Set-Acl -LiteralPath $p -AclObject $acl

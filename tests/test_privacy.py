@@ -5,10 +5,14 @@ import os
 import pytest
 
 from tracefolio.errors import TracefolioError
-from tracefolio.private_config import load_config, load_config_set, selected_config_paths
 from tracefolio.privacy import (
-    PrivacyPolicy, path_allowed, resolve_allowed_path, sanitize_text, secure_private_root,
+    PrivacyPolicy,
+    path_allowed,
+    resolve_allowed_path,
+    sanitize_text,
+    secure_private_root,
 )
+from tracefolio.private_config import load_config, load_config_set, selected_config_paths
 
 
 def configured(tmp_path, monkeypatch, payload):
@@ -120,7 +124,7 @@ def test_symlink_escape_rejected(tmp_path):
             raise
         import subprocess
         result = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(outside)],
-                                capture_output=True)
+                                capture_output=True, check=False)
         assert result.returncode == 0
     with pytest.raises(TracefolioError, match="path_escape"):
         resolve_allowed_path(root, "link/file.py")
@@ -132,4 +136,13 @@ def test_private_root_permissions(tmp_path):
     assert root.is_dir()
     if os.name != "nt":
         assert root.stat().st_mode & 0o077 == 0
+
+
+def test_private_permissions_can_be_reapplied_with_children(tmp_path):
+    root = tmp_path / "private-reused"
+    secure_private_root(root)
+    child = root / "record.json"
+    child.write_text("{}", encoding="utf-8")
+    secure_private_root(root)
+    assert child.read_text(encoding="utf-8") == "{}"
 

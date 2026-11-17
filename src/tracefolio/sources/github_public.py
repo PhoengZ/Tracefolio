@@ -4,8 +4,8 @@ from urllib.parse import quote
 
 from ..contracts.evidence import CollectionResult, ContextResult, SourceCursor
 from ..errors import TracefolioError
-from ..private_config import REPOSITORY
 from ..privacy import path_allowed
+from ..private_config import REPOSITORY
 from .base import ContextRequest, SourceRequest, canonical, coverage, evidence
 from .github_transport import GitHubTransport
 from .notebooks import normalize_text

@@ -20,6 +20,7 @@ class InvestigationPacket(Artifact):
     evidence: list[EvidenceRecord]
     prior_works: list[WorkRecord] = Field(default_factory=list)
     configured_work_ids: list[Id] = Field(default_factory=list)
+    known_work_ids: list[Id] = Field(default_factory=list)
     coverage: Coverage
 
 

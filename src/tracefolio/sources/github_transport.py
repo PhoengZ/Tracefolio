@@ -49,7 +49,7 @@ class GitHubTransport:
                     raise TracefolioError("github_response_budget", exit_code=3)
                 data = json.loads(raw.decode("utf-8"))
                 if not isinstance(data, (dict, list)):
-                    raise ValueError
+                    raise TypeError
                 return ApiResponse(data, {k.lower(): v for k, v in response.headers.items()},
                                    len(raw))
         except HTTPError as error:
@@ -62,6 +62,6 @@ class GitHubTransport:
             raise TracefolioError("github_unavailable", exit_code=3) from None
         except (URLError, OSError, TimeoutError):
             raise TracefolioError("github_unavailable", exit_code=3) from None
-        except (ValueError, UnicodeError):
+        except (ValueError, TypeError, UnicodeError):
             raise TracefolioError("github_invalid_json", exit_code=3) from None
 

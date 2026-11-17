@@ -15,11 +15,11 @@ def normalize_notebook(raw_json: str) -> NotebookSource:
     try:
         doc = json.loads(raw_json)
         if not isinstance(doc, dict) or not isinstance(doc.get("cells"), list):
-            raise ValueError
+            raise TypeError
         texts, cells = [], []
         for index, cell in enumerate(doc["cells"]):
             if not isinstance(cell, dict):
-                raise ValueError
+                raise TypeError
             kind = cell.get("cell_type")
             if kind not in {"code", "markdown"}:
                 continue
@@ -27,7 +27,7 @@ def normalize_notebook(raw_json: str) -> NotebookSource:
             if isinstance(source, list) and all(isinstance(s, str) for s in source):
                 source = "".join(source)
             if not isinstance(source, str):
-                raise ValueError
+                raise TypeError
             hashed = hashlib.sha256(source.encode("utf-8")).hexdigest()
             cells.append({"cell_index": index, "cell_type": kind, "source_digest": hashed})
             texts.append(f"# notebook-source-v1 cell {index} ({kind})\n{source}\n")

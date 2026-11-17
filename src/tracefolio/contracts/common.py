@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
@@ -9,13 +9,13 @@ State = Literal["complete", "partial", "unavailable"]
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def valid_utc(value: str) -> str:
     if not value.endswith("Z"):
         raise ValueError("UTC Z timestamp required")
-    datetime.fromisoformat(value.replace("Z", "+00:00"))
+    datetime.fromisoformat(value)
     return value
 
 

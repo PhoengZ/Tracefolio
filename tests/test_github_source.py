@@ -37,7 +37,7 @@ class FakeGitHub:
             values = self.history_pages[page - 1]
             headers = {"link": '<https://api.github.com/next>; rel="next"'} if page < len(self.history_pages) else {}
             return ApiResponse(values, headers)
-        if path.endswith("/commits/" + SHA) or path.endswith("/commits/" + OLDER):
+        if path.endswith(("/commits/" + SHA, "/commits/" + OLDER)):
             if self.fail_detail:
                 raise TracefolioError("github_rate_limited", exit_code=3)
             files = copy.deepcopy(self.files_pages[page - 1])
@@ -154,7 +154,7 @@ def test_rate_limit_stops_requests_and_preserves_remaining_queue():
     api.history_pages = [[{"sha": SHA}, {"sha": OLDER}]]
     api.fail_detail = True
     result = GitHubPublicProvider(api).collect_source(req(), None)
-    details = [p for p, _ in api.calls if p.endswith(SHA) or p.endswith(OLDER)]
+    details = [p for p, _ in api.calls if p.endswith((SHA, OLDER))]
     assert len(details) == 1
     assert set(result.cursor.pending) == {SHA, OLDER}
 
