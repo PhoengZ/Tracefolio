@@ -36,6 +36,9 @@ class SourceCursor(Artifact):
     processed: list[str] = Field(default_factory=list)
     inventory: dict[str, str] = Field(default_factory=dict)
     baseline: dict[str, str] = Field(default_factory=dict)
+    page: int = Field(default=1, ge=1)
+    listed_complete: bool = True
+    base_head: str | None = None
     observed_at: Utc | None = None
 
 
