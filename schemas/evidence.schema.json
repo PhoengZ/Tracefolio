@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "language": {
+      "const": "en",
+      "default": "en",
+      "title": "Language",
+      "type": "string"
+    },
+    "evidence_id": {
+      "title": "Evidence Id",
+      "type": "string"
+    },
+    "project_id": {
+      "maxLength": 100,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "source_id": {
+      "maxLength": 100,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "title": "Source Id",
+      "type": "string"
+    },
+    "origin": {
+      "enum": [
+        "git_commit",
+        "snapshot",
+        "context",
+        "user_note"
+      ],
+      "title": "Origin",
+      "type": "string"
+    },
+    "revision": {
+      "title": "Revision",
+      "type": "string"
+    },
+    "source_relative_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Relative Path"
+    },
+    "content_digest": {
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "payload": {
+      "title": "Payload",
+      "type": "string"
+    },
+    "attribution": {
+      "default": "unverified",
+      "enum": [
+        "self",
+        "other",
+        "unverified"
+      ],
+      "title": "Attribution",
+      "type": "string"
+    },
+    "evidence_type": {
+      "default": "code",
+      "enum": [
+        "code",
+        "measurement",
+        "deployment",
+        "user_note"
+      ],
+      "title": "Evidence Type",
+      "type": "string"
+    },
+    "completeness": {
+      "default": "complete",
+      "enum": [
+        "complete",
+        "partial",
+        "unavailable"
+      ],
+      "title": "Completeness",
+      "type": "string"
+    },
+    "redactions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Redactions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "evidence_id",
+    "project_id",
+    "source_id",
+    "origin",
+    "revision",
+    "content_digest",
+    "payload"
+  ],
+  "title": "EvidenceRecord",
+  "type": "object"
+}
