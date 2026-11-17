@@ -12,9 +12,9 @@ dist/
 .env
 .env.*
 *.env
-routes.json
-routes.*.json
-bindings*.json
+/routes.json
+/routes.*.json
+/bindings*.json
 state/
 packets/
 exports/
