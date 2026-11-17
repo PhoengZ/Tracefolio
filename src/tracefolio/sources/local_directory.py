@@ -27,6 +27,8 @@ class LocalDirectoryProvider:
                 raise TracefolioError("unstable_observation", exit_code=3)
             text, metadata = normalize_text(raw, path, req.limits)
             return text, metadata, len(raw)
+        except FileNotFoundError:
+            raise TracefolioError("source_missing", exit_code=3) from None
         except OSError:
             raise TracefolioError("source_read_failed", exit_code=3) from None
 
@@ -81,6 +83,9 @@ class LocalDirectoryProvider:
                     records.append(evidence(req, "sha256:" + content_hash, path, text, **metadata))
                     invalidated.append(path)
             except TracefolioError as error:
+                if error.code == "source_missing":
+                    inventory.pop(path, None)
+                    continue
                 retry.append(path)
                 limitations.append(error.code)
         pending = retry + names[len(selected):]
@@ -96,6 +101,9 @@ class LocalDirectoryProvider:
                     if hashlib.sha256(verified.encode()).hexdigest() != expected:
                         raise TracefolioError("unstable_observation", exit_code=3)
                 except TracefolioError as error:
+                    if error.code == "source_missing":
+                        inventory.pop(path, None)
+                        continue
                     pending.append(path)
                     limitations.append(error.code)
         if not pending:

@@ -1,6 +1,6 @@
 # Tracefolio: Evidence-Based Work Knowledge Layer
 
-Status: Proposed design for review; planning only. No product implementation or external account changes are authorized by this document.
+Status: Owner-approved Phase 1 design, implemented locally. External delivery/integration remains out of scope. See docs/execution-report.md for evidence and remaining acceptance.
 Date: 2026-11-17
 Working repository name: tracefolio
 Tagline: Turn work history into evidence-backed career knowledge.
@@ -218,7 +218,7 @@ The harness may send supplied packet content to its configured model provider. T
 - Proposals upsert the supplied work_updates only. Omitted works remain intact. Each supplied work update is a complete replacement of that work's current semantic fields; its previous record and supporting sanitized evidence must be present in the packet. Refuse updates lacking this context. The proposal cannot delete or retire works. Changed source paths conservatively mark affected old claims needs_review before reanalysis; history stays available. Work retirement is deferred to an explicit owner workflow.
 - Track collected and analyzed evidence separately. Every evidence ID in a packet must occur exactly once in analyzed_evidence_ids or excluded_evidence; reject missing IDs, duplicates, and IDs outside the packet. Excluded evidence keeps its reason in the analysis ledger; unavailable_content keeps coverage partial. A successful apply removes only that packet's accounted-for IDs from the pending-analysis backlog. Failed or stale apply removes none.
 - Packets are deterministic bounded slices of pending evidence plus the complete prior context for work updates. If required prior context cannot fit, split analysis by work; if a single work still exceeds budget, report blocked_budget/partial and require an explicitly increased budget rather than silently dropping context. A project is ready only when collection coverage is complete, pending-analysis backlog is empty, all configured work units are represented with analysis_status ready, and no unresolved invalidated work remains. Partial generations may be published and must remain visibly partial.
-- Publish immutable projects/<project_id>/generations/<generation_id>/project.json and works/<work_id>.json. Atomically replace the small CURRENT pointer only after every file validates. A crash leaves CURRENT pointing at the previous valid generation.
+- Publish immutable projects/<project_id>/generations/<generation_id>/project.json and works/<work_id>.json. Atomically replace the small CURRENT pointer only after every file validates. CURRENT selects an immutable control revision containing both the analysis ledger and a semantic-generation reference; this couples pending-analysis consumption with publication. A crash leaves the previous control revision and its valid generation selected.
 - Reapplying the same accepted proposal is a no-op; it does not bump record_revision or timestamps. A changed proposal creates a new generation.
 - summarize reads each project's CURRENT once, and records the selected generation IDs. No catalogue database or vector database is needed.
 - Every configured project has an aggregate entry, including pending, disabled, and failed projects; missing data is visible.
@@ -243,7 +243,7 @@ The harness may send supplied packet content to its configured model provider. T
 
 ## 11. CLI contract
 
-Commands below are proposed, not currently installed:
+Commands below are implemented in Phase 1; see docs/execution-report.md for verification and remaining owner acceptance:
 - tracefolio config validate
 - tracefolio collect --project <id> | --all
 - tracefolio packet create --project <id>

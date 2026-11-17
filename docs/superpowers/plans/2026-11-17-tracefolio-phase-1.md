@@ -1,14 +1,14 @@
 # Tracefolio Phase 1 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox syntax for tracking. This artifact authorizes planning only; the owner will choose whether/where to implement.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox syntax for tracking. Owner approved execution after private source review. See docs/execution-report.md for actual evidence and pending owner acceptance.
 
 **Goal:** Build a secure, configurable work-knowledge CLI that lets an existing LLM harness produce English, evidence-linked project/work JSON from local folders, local Git, and public GitHub.
 
 **Architecture:** Source adapters normalize bounded evidence into private state. A harness reads sanitized investigation packets and submits typed proposals; deterministic validation publishes immutable per-project/work generations. A portfolio command aggregates every configured project with explicit coverage and gaps.
 
-**Tech Stack:** Proposed Python 3.12+, Git CLI, Pydantic v2; standard-library argparse, urllib, hashlib, pathlib, and JSON; pytest, jsonschema, and Ruff for development. Resolve/test compatible versions during implementation. No LLM SDK, database server, browser automation, email client, or service framework.
+**Tech Stack:** Python 3.12+, Git CLI, Pydantic v2; standard-library argparse, urllib, hashlib, pathlib, and JSON; pytest, jsonschema, and Ruff for development. Resolve/test compatible versions during implementation. No LLM SDK, database server, browser automation, email client, or service framework.
 
-**Spec:** ../specs/2026-11-17-tracefolio-design.md (authoritative proposed design).
+**Spec:** ../specs/2026-11-17-tracefolio-design.md (authoritative design).
 
 ## Global Constraints
 
@@ -23,7 +23,7 @@
 - No email connections, drafts, email sending, test emails, job applications, or any message delivery.
 - No resume/PDF generation, public export, job search, scheduling, cloud bucket, or Notion integration in Phase 1.
 - Machine-generated claims remain unreviewed; validation does not establish truth or ownership.
-- Proposed commands below DO NOT exist yet. Implementation evidence is PENDING.
+- Commands are implemented locally; see the execution report. Historical planning notes below are retained for context.
 
 ## Review Focus
 
@@ -36,20 +36,20 @@ Each condition below is explicitly tested in the owning task:
 
 ## Repository status and implementation prerequisite
 
-The owner has now designated and authorized initialization of a local product checkout and its origin remote. It contains copied planning documents and synthetic examples only, on an unborn main branch. No product implementation, commit, or push has occurred. Source configuration is a private proposal awaiting explicit owner confirmation; after that confirmation the owner authorizes execution of this plan. The actual user-specific directory and remote are intentionally omitted from these public planning documents.
+The owner approved implementation after confirming the revised source configuration. The designated fresh checkout is used on a dedicated feature branch. Private configuration and state remain outside the repository. No remote push or external delivery is authorized.
 
-- [ ] At execution start, confirm the owner's chosen repository and read applicable AGENTS.md files.
-- [ ] Inspect git status --short, git branch --show-current, and git rev-parse --verify HEAD. Record actual branch/base commit below; if there is no initial commit, record that state explicitly.
-- [ ] Confirm/create a dedicated feat/semantic-work-layer branch from the confirmed base before any product code OR test edit. Reuse an existing branch only if it belongs to this same task. Do not implement on a shared/default branch without explicit owner override.
-- [ ] Follow the installed worktree/isolation workflow separately if needed. Preserve existing user changes; never stash/reset/delete/commit unrelated work just to satisfy the branch requirement.
-- [ ] Ensure these planning documents travel into the chosen checkout without adding private routes.
+- [x] At execution start, confirm the owner's chosen repository and read applicable AGENTS.md files.
+- [x] Inspect git status --short, git branch --show-current, and git rev-parse --verify HEAD. Record actual branch/base commit below; if there is no initial commit, record that state explicitly.
+- [x] Confirm/create a dedicated feat/semantic-work-layer branch from the confirmed base before any product code OR test edit. Reuse an existing branch only if it belongs to this same task. Do not implement on a shared/default branch without explicit owner override.
+- [x] Follow the installed worktree/isolation workflow separately if needed. Preserve existing user changes; never stash/reset/delete/commit unrelated work just to satisfy the branch requirement.
+- [x] Ensure these planning documents travel into the chosen checkout without adding private routes.
 
 | Execution evidence | Status |
 |---|---|
-| Target repository | Initialized locally per owner instruction; no product implementation yet |
-| Task branch | PENDING execution |
-| Starting commit / empty-repo state | PENDING execution |
-| Python/Git versions | PENDING execution |
+| Target repository | Owner-designated fresh local checkout; Phase 1 implemented |
+| Task branch | feat/semantic-work-layer |
+| Starting commit / empty-repo state | a385d4b, initial planning-only baseline |
+| Python/Git versions | Python 3.12.3 / Git 2.49.0.windows.1 |
 | Harness selected by owner | PENDING manual acceptance |
 
 ## Intended file map
@@ -92,13 +92,13 @@ Definitions such as Generation, AnalysisLedger, PublicationResult, CollectionRep
 **Consumes:** Spec sections 5, 7, 11.
 **Produces:** All shared public models; offline schema registry; initial CLI entry point tracefolio.
 
-- [ ] Create the minimal package/test configuration after the branch prerequisite. Runtime dependency is Pydantic >=2,<3; development dependencies are pytest, jsonschema, and Ruff. Set Python >=3.12 and register tracefolio = tracefolio.cli:main. Do not add provider credentials.
-- [ ] Write failing contract tests: test_routes_reject_literal_locator_fields, test_duplicate_ids_rejected, test_unknown_fields_rejected, test_all_artifacts_have_version, test_utc_timestamps_and_enums, test_project_and_work_validate_in_both_engines. Assert a route with root, url, or token fails; valid synthetic records pass Pydantic and Draft202012Validator with FormatChecker; inconsistent IDs/unsupported versions fail.
-- [ ] Install proposed test tooling with python -m pip install -e ".[dev]" and run python -m pytest tests/test_contracts.py -q. Expect failure for the unimplemented contracts, not a passing placeholder.
-- [ ] Implement the public models and generate schemas offline. Forbid extra fields, use explicit optional/null semantics, validate cross-record identifiers, and keep root/repository values out of schema examples.
-- [ ] Define schema_export.main(argv: list[str] | None = None) -> int with --check for committed schema drift. Validation uses the locally registered schemas only; untrusted $schema/$ref values must not trigger network access.
-- [ ] Rerun the contract tests; expect PASS. Run python -m tracefolio.schema_export --check; expect exit 0/no drift.
-- [ ] Commit task-owned public files only: feat: define versioned work knowledge contracts.
+- [x] Create the minimal package/test configuration after the branch prerequisite. Runtime dependency is Pydantic >=2,<3; development dependencies are pytest, jsonschema, and Ruff. Set Python >=3.12 and register tracefolio = tracefolio.cli:main. Do not add provider credentials.
+- [x] Write failing contract tests: test_routes_reject_literal_locator_fields, test_duplicate_ids_rejected, test_unknown_fields_rejected, test_all_artifacts_have_version, test_utc_timestamps_and_enums, test_project_and_work_validate_in_both_engines. Assert a route with root, url, or token fails; valid synthetic records pass Pydantic and Draft202012Validator with FormatChecker; inconsistent IDs/unsupported versions fail.
+- [x] Install proposed test tooling with python -m pip install -e ".[dev]" and run python -m pytest tests/test_contracts.py -q. Expect failure for the unimplemented contracts, not a passing placeholder.
+- [x] Implement the public models and generate schemas offline. Forbid extra fields, use explicit optional/null semantics, validate cross-record identifiers, and keep root/repository values out of schema examples.
+- [x] Define schema_export.main(argv: list[str] | None = None) -> int with --check for committed schema drift. Validation uses the locally registered schemas only; untrusted $schema/$ref values must not trigger network access.
+- [x] Rerun the contract tests; expect PASS. Run python -m tracefolio.schema_export --check; expect exit 0/no drift.
+- [x] Commit task-owned public files only: feat: define versioned work knowledge contracts.
 
 Representative contract assertion:
 ~~~python
@@ -115,16 +115,16 @@ def test_routes_reject_literal_locator_fields():
 **Consumes:** RouteRegistry/Limits and TracefolioError.
 **Produces:** load_config; PrivacyPolicy; resolve_allowed_path(root: Path, relative_path: str) -> Path; sanitize_text(text: str, policy: PrivacyPolicy) -> SanitizedText; secure_private_root(path: Path) -> None.
 
-- [ ] Add failing tests for missing TRACEFOLIO_* bindings; source/config/state/output root nesting; drive/home roots; .. and symlink/junction escapes; unsafe IDs; unreadable paths; and unknown source kinds. Use synthetic temporary directories.
-- [ ] Add test_disabled_project_does_not_resolve_missing_binding_or_read_source; assert its structural IDs are still validated and summary status remains disabled. Include absolute source URLs in the redaction regression cases.
-- [ ] Add registry-composition tests for public-only selection, local-only selection, both registries, both selector variables being set, duplicate project IDs, different global limits, and an unavailable registry. Assert no implicit override, no source IO on invalid sets, and no leak of local roots into public-only summaries. Automatically redact all selected registry paths.
-- [ ] Add test_redaction_covers_all_input_surfaces parameterized over messages, added/removed diff lines, context, paths, and exceptions. Include a fake credential, bound source path, bound repository locator, configured private endpoint, owner email, and an unrelated benign identifier. Assert sensitive strings are absent and the benign identifier survives.
-- [ ] Run python -m pytest tests/test_privacy.py -q; expect FAIL before implementation.
-- [ ] Implement environment resolution without dumping process environment. Parse owner emails and additional redaction strings from JSON-array environment bindings; automatically register all resolved locator values. Reject additional redaction values shorter than four characters.
-- [ ] Implement resolved-path checks and mandatory deny rules before IO. Check file identity/containment at open time as far as supported; do not promise race-proof protection against a malicious process modifying the same filesystem. Enforce/document current-user private-state ACL/mode on Windows/Linux.
-- [ ] Redact in memory before ANY evidence persistence; make exceptions safe by construction. Document heuristic limits and that an external harness may use a cloud model.
-- [ ] Rerun tests; expect PASS. Windows junction assertions run on Windows; POSIX symlink/mode assertions run on Linux. If required ACL setup is unavailable, return a controlled failure rather than silently loosening permissions.
-- [ ] Commit: feat: enforce private configuration and evidence boundaries.
+- [x] Add failing tests for missing TRACEFOLIO_* bindings; source/config/state/output root nesting; drive/home roots; .. and symlink/junction escapes; unsafe IDs; unreadable paths; and unknown source kinds. Use synthetic temporary directories.
+- [x] Add test_disabled_project_does_not_resolve_missing_binding_or_read_source; assert its structural IDs are still validated and summary status remains disabled. Include absolute source URLs in the redaction regression cases.
+- [x] Add registry-composition tests for public-only selection, local-only selection, both registries, both selector variables being set, duplicate project IDs, different global limits, and an unavailable registry. Assert no implicit override, no source IO on invalid sets, and no leak of local roots into public-only summaries. Automatically redact all selected registry paths.
+- [x] Add test_redaction_covers_all_input_surfaces parameterized over messages, added/removed diff lines, context, paths, and exceptions. Include a fake credential, bound source path, bound repository locator, configured private endpoint, owner email, and an unrelated benign identifier. Assert sensitive strings are absent and the benign identifier survives.
+- [x] Run python -m pytest tests/test_privacy.py -q; expect FAIL before implementation.
+- [x] Implement environment resolution without dumping process environment. Parse owner emails and additional redaction strings from JSON-array environment bindings; automatically register all resolved locator values. Reject additional redaction values shorter than four characters.
+- [x] Implement resolved-path checks and mandatory deny rules before IO. Check file identity/containment at open time as far as supported; do not promise race-proof protection against a malicious process modifying the same filesystem. Enforce/document current-user private-state ACL/mode on Windows/Linux.
+- [x] Redact in memory before ANY evidence persistence; make exceptions safe by construction. Document heuristic limits and that an external harness may use a cloud model.
+- [x] Rerun tests; expect PASS. Windows junction assertions run on Windows; POSIX symlink/mode assertions run on Linux. If required ACL setup is unavailable, return a controlled failure rather than silently loosening permissions.
+- [x] Commit: feat: enforce private configuration and evidence boundaries.
 
 Representative privacy assertion:
 ~~~python
@@ -139,16 +139,16 @@ assert clean.redactions
 **Consumes:** SourceRoute, SourceRequest/ContextRequest, privacy helpers.
 **Produces:** LocalGitProvider and LocalDirectoryProvider implementing SourceProvider, with normalized candidate evidence and safe coverage/cursors.
 
-- [ ] Create a synthetic temp Git history: vague-message feature, later fix, another author, merge, revert, deleted/renamed file, binary file, and a deliberately changed working-tree file. Initialize Git identity/config only in the temporary repo.
-- [ ] Write failing tests: test_message_and_actual_diff_are_collected; test_uncommitted_edits_not_in_git_evidence; test_authorship_is_not_inferred; test_merge_resolution_delta_is_retained_as_context; test_revert_retained; test_context_uses_pinned_revision; test_rewritten_head_requires_reconciliation. Assert merge context retains a conflict-resolution change and does not imply a new self-authored accomplishment.
-- [ ] Add snapshot tests for new/changed/deleted text files, non-Git attribution unverified, mandatory exclusions, escaped links, file/byte budgets, and scan-capacity continuation. Assert oversized/unavailable content creates partial coverage, not fabricated text.
-- [ ] Add notebook tests: test_notebook_sources_exclude_outputs_metadata_and_attachments, test_notebook_diff_uses_parent_and_commit_cell_sources, test_notebook_changes_never_execute, and test_malformed_or_oversized_notebook_is_partial. Seed fake secrets in output/metadata and assert they never enter packets; preserve changed code/Markdown plus revision-local cell provenance. Define normalize_notebook(raw_json: str) -> NotebookSource in sources/notebooks.py; NotebookSource contains normalized source text and cell provenance. Enforce max_notebook_bytes=8388608 on raw notebook reads before parsing, max_text_file_bytes=131072 on normalized text, and the total raw-byte source budget. Test that a 1 MiB output-heavy notebook with small source cells succeeds while one above the raw limit is rejected as partial; use this normalizer across all providers.
-- [ ] Run python -m pytest tests/test_local_sources.py -q; expect FAIL.
-- [ ] Implement read-only Git commands with shell=False, no pager/external diff/textconv/signature execution, and fsmonitor disabled; never change repository config, working tree, index, hooks, or refs. Pin revisions before reads and preserve complete commit messages plus available diffs.
-- [ ] Implement local text snapshots with a stable relative-path ordering and content hashes. Honor explicit include/exclude scopes and record deletions. A cursor preserves pinned scan membership and an observation interval; files changed mid-scan are detected, keep coverage partial, and are queued for a subsequent scan. Do not claim an atomic filesystem snapshot. Compute identity attribution before redacting raw author identities.
-- [ ] Route .ipynb reads/diffs through the shared source-cell normalizer before redaction/persistence, never through raw notebook output patches. Record normalization version, cell index, source digest, and pinned revision without executing notebook code.
-- [ ] Rerun tests; expect PASS. Assert source working tree/index/refs are identical before and after collection.
-- [ ] Commit: feat: collect local git evidence and directory snapshots.
+- [x] Create a synthetic temp Git history: vague-message feature, later fix, another author, merge, revert, deleted/renamed file, binary file, and a deliberately changed working-tree file. Initialize Git identity/config only in the temporary repo.
+- [x] Write failing tests: test_message_and_actual_diff_are_collected; test_uncommitted_edits_not_in_git_evidence; test_authorship_is_not_inferred; test_merge_resolution_delta_is_retained_as_context; test_revert_retained; test_context_uses_pinned_revision; test_rewritten_head_requires_reconciliation. Assert merge context retains a conflict-resolution change and does not imply a new self-authored accomplishment.
+- [x] Add snapshot tests for new/changed/deleted text files, non-Git attribution unverified, mandatory exclusions, escaped links, file/byte budgets, and scan-capacity continuation. Assert oversized/unavailable content creates partial coverage, not fabricated text.
+- [x] Add notebook tests: test_notebook_sources_exclude_outputs_metadata_and_attachments, test_notebook_diff_uses_parent_and_commit_cell_sources, test_notebook_changes_never_execute, and test_malformed_or_oversized_notebook_is_partial. Seed fake secrets in output/metadata and assert they never enter packets; preserve changed code/Markdown plus revision-local cell provenance. Define normalize_notebook(raw_json: str) -> NotebookSource in sources/notebooks.py; NotebookSource contains normalized source text and cell provenance. Enforce max_notebook_bytes=8388608 on raw notebook reads before parsing, max_text_file_bytes=131072 on normalized text, and the total raw-byte source budget. Test that a 1 MiB output-heavy notebook with small source cells succeeds while one above the raw limit is rejected as partial; use this normalizer across all providers.
+- [x] Run python -m pytest tests/test_local_sources.py -q; expect FAIL.
+- [x] Implement read-only Git commands with shell=False, no pager/external diff/textconv/signature execution, and fsmonitor disabled; never change repository config, working tree, index, hooks, or refs. Pin revisions before reads and preserve complete commit messages plus available diffs.
+- [x] Implement local text snapshots with a stable relative-path ordering and content hashes. Honor explicit include/exclude scopes and record deletions. A cursor preserves pinned scan membership and an observation interval; files changed mid-scan are detected, keep coverage partial, and are queued for a subsequent scan. Do not claim an atomic filesystem snapshot. Compute identity attribution before redacting raw author identities.
+- [x] Route .ipynb reads/diffs through the shared source-cell normalizer before redaction/persistence, never through raw notebook output patches. Record normalization version, cell index, source digest, and pinned revision without executing notebook code.
+- [x] Rerun tests; expect PASS. Assert source working tree/index/refs are identical before and after collection.
+- [x] Commit: feat: collect local git evidence and directory snapshots.
 
 Representative evidence assertion:
 ~~~python
@@ -163,16 +163,16 @@ assert result.coverage.state in {"complete", "partial"}
 **Consumes:** SourceProvider contracts, privacy policy, SourceCursor.
 **Produces:** GitHubPublicProvider; GitHubTransport.get_json(path: str, params: dict[str, str]) -> ApiResponse; injectable fake transport.
 
-- [ ] Write failing tests for public visibility, owner/repo syntax, default-branch SHA pinning, history/detail pagination, per-commit diff extraction, shared evidence normalization, and unknown-author attribution.
-- [ ] Add fixtures for 404/private visibility, 429 with retry-after, 5xx, timeout, binary/missing patch, provider file cap, moving default branch, and base/head divergence. Assert safe errors, persisted continuation, partial coverage, no advancing completed checkpoint, and no last-good-state loss.
-- [ ] Add test_transport_rejects_external_redirect_and_credentials. Assert no token/header/credential helper is loaded, and all requests remain within fixed GitHub HTTPS provider hosts.
-- [ ] Add test_public_repository_becoming_private_does_not_fallback_to_auth_or_local. Recheck visibility on each collection; preserve prior records and report a source error without touching an unselected local source. Public-repository metadata discovery prepares review candidates only and must not automatically enroll every visible repository.
-- [ ] Run python -m pytest tests/test_github_source.py -q; expect FAIL. Automated tests use fake responses and make no live network requests.
-- [ ] Implement anonymous REST collection; pin target SHA, paginate commit sets and each commit's files, then request only bounded allowed text context at a pinned SHA. Never infer completeness from a capped aggregate file list.
-- [ ] Reuse notebook normalization from T3 for bounded pinned parent/current notebook contents; if the required contents cannot be acquired within budget, report partial coverage rather than retaining the raw notebook patch.
-- [ ] Treat unavailable or oversized patches as evidence gaps. Resume rate limits conservatively; no unbounded retries or sleeps. Keep endpoint construction internal; source coordinates exist only in private bindings.
-- [ ] Rerun tests; expect PASS. Real public-repository use is tested later by the owner against a route they select.
-- [ ] Commit: feat: add public github evidence provider.
+- [x] Write failing tests for public visibility, owner/repo syntax, default-branch SHA pinning, history/detail pagination, per-commit diff extraction, shared evidence normalization, and unknown-author attribution.
+- [x] Add fixtures for 404/private visibility, 429 with retry-after, 5xx, timeout, binary/missing patch, provider file cap, moving default branch, and base/head divergence. Assert safe errors, persisted continuation, partial coverage, no advancing completed checkpoint, and no last-good-state loss.
+- [x] Add test_transport_rejects_external_redirect_and_credentials. Assert no token/header/credential helper is loaded, and all requests remain within fixed GitHub HTTPS provider hosts.
+- [x] Add test_public_repository_becoming_private_does_not_fallback_to_auth_or_local. Recheck visibility on each collection; preserve prior records and report a source error without touching an unselected local source. Public-repository metadata discovery prepares review candidates only and must not automatically enroll every visible repository.
+- [x] Run python -m pytest tests/test_github_source.py -q; expect FAIL. Automated tests use fake responses and make no live network requests.
+- [x] Implement anonymous REST collection; pin target SHA, paginate commit sets and each commit's files, then request only bounded allowed text context at a pinned SHA. Never infer completeness from a capped aggregate file list.
+- [x] Reuse notebook normalization from T3 for bounded pinned parent/current notebook contents; if the required contents cannot be acquired within budget, report partial coverage rather than retaining the raw notebook patch.
+- [x] Treat unavailable or oversized patches as evidence gaps. Resume rate limits conservatively; no unbounded retries or sleeps. Keep endpoint construction internal; source coordinates exist only in private bindings.
+- [x] Rerun tests; expect PASS. Real public-repository use is tested later by the owner against a route they select.
+- [x] Commit: feat: add public github evidence provider.
 
 ## Task 5: Coordinate incremental collection, packets, and durable private state
 
@@ -180,15 +180,15 @@ assert result.coverage.state in {"complete", "partial"}
 **Consumes:** Providers and all collection/packet contracts.
 **Produces:** collect_projects(config: ResolvedConfig, project_ids: list[str]) -> CollectionReport; create_packet(store: StateStore, project_id: str) -> PacketResult; extend_packet(store: StateStore, request: ContextRequest) -> PacketResult; locking/atomic generation primitives; separate traversal and analysis ledgers.
 
-- [ ] Write failing tests: test_add_route_without_code_change; test_project_source_and_work_isolation; test_shared_work_across_sources_has_one_identity; test_changed_source_binding_requires_reconciliation; test_resume_after_commit_budget; test_unchanged_collection_is_noop; test_no_head_advance_on_incomplete_range; test_one_source_failure_keeps_other_projects.
-- [ ] Add test_packet_budget_tracks_unanalyzed_backlog, test_required_prior_work_context_cannot_be_silently_dropped, test_context_request_is_bound_to_source_revision_and_scope, and test_invalidation_overlay_marks_claim_needs_review_without_rewriting_history. Assert every declared packet byte budget includes its envelope/context and that a blocked work returns partial/blocked_budget.
-- [ ] Add state tests for exclusive lock conflict, interrupted staging, and atomic CURRENT replacement. Assert previous generation remains readable if any file/validation/publication step fails.
-- [ ] Run python -m pytest tests/test_collection_packets.py -q; expect FAIL.
-- [ ] Implement content-addressed sanitized evidence, pinned collection manifests/cursors, pending-analysis IDs, and route/source/policy fingerprints. Persist raw private bindings only in config, never collection artifacts. Distinguish collected, unavailable, excluded, and analyzed evidence. Changed source identity/scope forces reconciliation; a stricter redaction policy requires rebuilding into a new private state root, with no claim that old retained artifacts were retroactively sanitized.
-- [ ] Build deterministic packets by pending evidence/work context; pack complete existing-work context or stop with blocked_budget. Additional context creates a new packet digest and invalidates proposals for the old digest. Bind every packet to collection_revision; new evidence or changed route scopes invalidate outstanding project packets before they can clear newer needs_review flags.
-- [ ] Implement StateStore with same-filesystem staging, current-user permissions, per-project locks, and atomic pointer replacement. Document operator-only stale-lock recovery. Collection progress cannot masquerade as semantic publication.
-- [ ] Rerun tests; expect PASS. Assert source errors never mutate another project's generation.
-- [ ] Commit: feat: add resumable evidence collection and investigation packets.
+- [x] Write failing tests: test_add_route_without_code_change; test_project_source_and_work_isolation; test_shared_work_across_sources_has_one_identity; test_changed_source_binding_requires_reconciliation; test_resume_after_commit_budget; test_unchanged_collection_is_noop; test_no_head_advance_on_incomplete_range; test_one_source_failure_keeps_other_projects.
+- [x] Add test_packet_budget_tracks_unanalyzed_backlog, test_required_prior_work_context_cannot_be_silently_dropped, test_context_request_is_bound_to_source_revision_and_scope, and test_invalidation_overlay_marks_claim_needs_review_without_rewriting_history. Assert every declared packet byte budget includes its envelope/context and that a blocked work returns partial/blocked_budget.
+- [x] Add state tests for exclusive lock conflict, interrupted staging, and atomic CURRENT replacement. Assert previous generation remains readable if any file/validation/publication step fails.
+- [x] Run python -m pytest tests/test_collection_packets.py -q; expect FAIL.
+- [x] Implement content-addressed sanitized evidence, pinned collection manifests/cursors, pending-analysis IDs, and route/source/policy fingerprints. Persist raw private bindings only in config, never collection artifacts. Distinguish collected, unavailable, excluded, and analyzed evidence. Changed source identity/scope forces reconciliation; a stricter redaction policy requires rebuilding into a new private state root, with no claim that old retained artifacts were retroactively sanitized.
+- [x] Build deterministic packets by pending evidence/work context; pack complete existing-work context or stop with blocked_budget. Additional context creates a new packet digest and invalidates proposals for the old digest. Bind every packet to collection_revision; new evidence or changed route scopes invalidate outstanding project packets before they can clear newer needs_review flags.
+- [x] Implement StateStore with same-filesystem staging, current-user permissions, per-project locks, and atomic pointer replacement. Document operator-only stale-lock recovery. Collection progress cannot masquerade as semantic publication.
+- [x] Rerun tests; expect PASS. Assert source errors never mutate another project's generation.
+- [x] Commit: feat: add resumable evidence collection and investigation packets.
 
 ## Task 6: Validate analysis proposals and publish stable project/work JSON
 
@@ -196,15 +196,15 @@ assert result.coverage.state in {"complete", "partial"}
 **Consumes:** InvestigationPacket, AnalysisProposal, StateStore and public record models.
 **Produces:** apply_proposal(store: StateStore, proposal_path: Path) -> PublicationResult; semantic reference validator; immutable project.json and works/<work_id>.json publication.
 
-- [ ] Write failing tests: test_foreign_or_missing_evidence_rejected; test_packet_and_base_generation_conflicts; test_new_collection_invalidates_old_packet_without_base_generation_change; test_metric_requires_measurement_evidence; test_deployed_requires_deployment_evidence; test_machine_cannot_mark_user_reviewed; test_unknown_owner_stays_unverified.
-- [ ] Add test_partial_proposal_upserts_without_dropping_unseen_works and test_every_packet_evidence_id_accounted_for_once. Assert omitted work B is byte-equivalent when only work A updates, unless B was independently invalidated by collection.
-- [ ] Add test_failed_apply_leaves_analysis_backlog_unchanged, test_reapply_is_noop, test_work_id_stable_across_new_commits, and test_changed_work_does_not_inherit_review_approval. Reject incomplete existing-work context and deletion/retirement fields.
-- [ ] Run python -m pytest tests/test_proposals.py -q; expect FAIL.
-- [ ] Implement offline schema validation, project/source/work/evidence integrity, proposal digest/base-generation checks, complete per-work semantic replacement within a project-level upsert, and generated timestamps/revisions. Validate claim categories and explicitly represent unknowns.
-- [ ] Account for packet evidence exactly once: analyzed or an allowed exclusion reason. Remove only accepted/accounted IDs from the analysis backlog in the same project publication transaction. unavailable_content keeps coverage partial.
-- [ ] Publish all validated files before moving CURRENT. Record proposal content digest for idempotent reapply. Leave all machine narratives unreviewed; no resume text, ranking, or sending behavior.
-- [ ] Rerun tests; expect PASS. Validate generated project/work JSON using both contract engines.
-- [ ] Commit: feat: publish evidence-linked project and work knowledge.
+- [x] Write failing tests: test_foreign_or_missing_evidence_rejected; test_packet_and_base_generation_conflicts; test_new_collection_invalidates_old_packet_without_base_generation_change; test_metric_requires_measurement_evidence; test_deployed_requires_deployment_evidence; test_machine_cannot_mark_user_reviewed; test_unknown_owner_stays_unverified.
+- [x] Add test_partial_proposal_upserts_without_dropping_unseen_works and test_every_packet_evidence_id_accounted_for_once. Assert omitted work B is byte-equivalent when only work A updates, unless B was independently invalidated by collection.
+- [x] Add test_failed_apply_leaves_analysis_backlog_unchanged, test_reapply_is_noop, test_work_id_stable_across_new_commits, and test_changed_work_does_not_inherit_review_approval. Reject incomplete existing-work context and deletion/retirement fields.
+- [x] Run python -m pytest tests/test_proposals.py -q; expect FAIL.
+- [x] Implement offline schema validation, project/source/work/evidence integrity, proposal digest/base-generation checks, complete per-work semantic replacement within a project-level upsert, and generated timestamps/revisions. Validate claim categories and explicitly represent unknowns.
+- [x] Account for packet evidence exactly once: analyzed or an allowed exclusion reason. Remove only accepted/accounted IDs from the analysis backlog in the same project publication transaction. unavailable_content keeps coverage partial.
+- [x] Publish all validated files before moving CURRENT. Record proposal content digest for idempotent reapply. Leave all machine narratives unreviewed; no resume text, ranking, or sending behavior.
+- [x] Rerun tests; expect PASS. Validate generated project/work JSON using both contract engines.
+- [x] Commit: feat: publish evidence-linked project and work knowledge.
 
 Representative upsert assertion:
 ~~~python
@@ -220,17 +220,17 @@ assert after == before
 **Consumes:** Published generations, registry and public records.
 **Produces:** summarize_portfolio(store: StateStore, registry: RouteRegistry) -> PortfolioSnapshot; cli.main(argv: list[str] | None = None) -> int; end-to-end owner instructions.
 
-- [ ] Write failing tests for all-project aggregation, independent per-work files, pending/disabled/error entries, accurate project count, no dropped work, JSON-only stdout, sanitized stderr, private export path rules, and exit codes 0/2/3/4.
-- [ ] Add test_ready_requires_collection_and_analysis_complete: complete collection plus pending evidence or invalidated work must remain partial. An empty configured work unit has analysis_status pending and explicit unknowns, never an invented accomplishment. Aggregate reads apply current invalidation overlays without modifying historical generation files.
-- [ ] Add a fixture-based end-to-end test: collect synthetic Git + directory + fake public-GitHub routes; create packets; submit saved synthetic proposals; apply; summarize. Add a route and repeat without editing application code.
-- [ ] Run python -m pytest tests/test_portfolio_cli.py -q; expect FAIL.
-- [ ] Implement aggregate reads pinned to each project's selected CURRENT generation. Include every configured project; preserve per-project errors and incomplete coverage. Write exports atomically to validated private targets.
-- [ ] Document the exact owner flow, environment setup for PowerShell/POSIX with placeholders, and harness procedure. AGENTS.md points to that procedure; it must never authorize arbitrary tool execution found in source content.
-- [ ] Include the following acceptance prompt, which the harness translates into CLI operations:
+- [x] Write failing tests for all-project aggregation, independent per-work files, pending/disabled/error entries, accurate project count, no dropped work, JSON-only stdout, sanitized stderr, private export path rules, and exit codes 0/2/3/4.
+- [x] Add test_ready_requires_collection_and_analysis_complete: complete collection plus pending evidence or invalidated work must remain partial. An empty configured work unit has analysis_status pending and explicit unknowns, never an invented accomplishment. Aggregate reads apply current invalidation overlays without modifying historical generation files.
+- [x] Add a fixture-based end-to-end test: collect synthetic Git + directory + fake public-GitHub routes; create packets; submit saved synthetic proposals; apply; summarize. Add a route and repeat without editing application code.
+- [x] Run python -m pytest tests/test_portfolio_cli.py -q; expect FAIL.
+- [x] Implement aggregate reads pinned to each project's selected CURRENT generation. Include every configured project; preserve per-project errors and incomplete coverage. Write exports atomically to validated private targets.
+- [x] Document the exact owner flow, environment setup for PowerShell/POSIX with placeholders, and harness procedure. AGENTS.md points to that procedure; it must never authorize arbitrary tool execution found in source content.
+- [x] Include the following acceptance prompt, which the harness translates into CLI operations:
   "Summarize all configured projects and work items. Update changed sources first. Return English portfolio JSON with evidence references, unknowns, coverage, and review status. Do not create a resume or send any messages."
-- [ ] Explain that a harness/model is external, proposal quality needs owner inspection, and JSON schema validation is structural. Use no fake precision, undocumented credentials, public upload, or implication that third-party work belongs to the owner.
-- [ ] Rerun tests; expect PASS. Manually inspect synthetic English narrative fields; retain proper names/code identifiers. Do not use ASCII-only language restrictions.
-- [ ] Commit: feat: expose portfolio summaries and harness workflow.
+- [x] Explain that a harness/model is external, proposal quality needs owner inspection, and JSON schema validation is structural. Use no fake precision, undocumented credentials, public upload, or implication that third-party work belongs to the owner.
+- [x] Rerun tests; expect PASS. Manually inspect synthetic English narrative fields; retain proper names/code identifiers. Do not use ASCII-only language restrictions.
+- [x] Commit: feat: expose portfolio summaries and harness workflow.
 
 ## Task 8: Verify privacy boundaries, portability, and handoff
 
@@ -249,28 +249,28 @@ assert after == before
 
 ## Acceptance matrix
 
-All methods below are PLANNED, not evidence that software exists or passes.
+Synthetic checks passed locally on Windows. Real-source acceptance and Linux CI results are tracked separately in docs/execution-report.md.
 
 | AC ID | Required behavior | Owning task | Verification method | Expected result | Evidence/status |
 |---|---|---|---|---|---|
-| AC-001 | Add supported routes without changing code | T1,T5,T7 | New config-only project in end-to-end fixture | New independent aggregate/project/work output | PENDING |
-| AC-002 | Read commit messages AND actual code changes | T3,T4 | Vague-message fixtures with distinctive diff | Both message and changed behavior present in evidence | PENDING |
-| AC-003 | Support local Git and non-Git text directories | T3 | Synthetic Git and snapshot lifecycle tests | Correct evidence origin, deletion tracking, safe attribution | PENDING |
-| AC-004 | Support public GitHub without a token | T4 | Paginated fake transport; later owner-selected real route | Public-only read access, pinned revisions, visible gaps | PENDING |
-| AC-005 | Produce separate stable project/work JSON | T1,T6 | Inspect generation files and validate with two engines | Referenced work files exist; IDs persist | PENDING |
-| AC-006 | Produce English portable schema-versioned JSON | T1,T7 | Schema/format tests and narrative inspection | Draft 2020-12 compatibility, English narratives, UTC dates | PENDING |
-| AC-007 | Keep locators/secrets out of code and runtime artifacts | T2,T8 | Seeded privacy regression across every input/output surface | Seeded values absent; logical refs/redaction markers remain | PENDING |
-| AC-008 | Keep private config/state/export outside repositories | T2,T7 | Resolved-path, nesting, ACL and export tests | Unsafe roots/escapes rejected before IO | PENDING |
-| AC-009 | Incremental update, safe resume, unchanged-run idempotence | T3,T4,T5,T6 | Budget, failure, divergence and repeated-proposal cases | No lost ranges/duplicates; correct partial/no-op states | PENDING |
-| AC-010 | Trace claims to evidence without inventing impact/ownership | T6 | Integrity, metric/deployment and attribution tests; manual sample | Unsupported claims rejected or marked unknown/unreviewed | PENDING |
-| AC-011 | Partial packets retain unseen work and analysis backlog | T5,T6 | Upsert + exact evidence-accounting tests | No dropped work; ready only after complete collection+analysis | PENDING |
-| AC-012 | Summarize every configured project, including gaps | T7 | All-project CLI/exit-code and manual harness flow | Valid JSON, accurate count/status, no hidden failures | PENDING |
-| AC-013 | Resist stale writes/crashes/concurrent writers | T5,T6 | Fault-injected publication and lock conflict | Last valid generation preserved | PENDING |
-| AC-014 | Untrusted source content cannot expand acquisition scope | T2,T4,T5,T8 | Path/ref/redirect/injection cases | No unauthorized source/network/execution side effects | PENDING |
-| AC-015 | No email, sending, Resume/PDF, or application side effects | T7,T8 | Scope/code/dependency review and side-effect spies | Only private evidence/JSON outputs and allowed source reads | PENDING |
-| AC-016 | Required verification and owner handoff are recorded | T8 | CI + final review + manual procedure | Actual results and remaining limits reported honestly | PENDING |
-| AC-017 | Notebook evidence contains source cells only | T3,T4,T8 | Parent/current cell-source and sensitive-output fixtures | No outputs, metadata, attachments, execution, or raw output patches; provenance retained | PENDING |
-| AC-018 | Public-first and private-local registries compose safely | T2,T4,T7 | Single/multiple registry selection, conflict and visibility-change tests | Public-only runs work without local bindings; private sources remain local; no implicit fallback or duplication | PENDING |
+| AC-001 | Add supported routes without changing code | T1,T5,T7 | New config-only project in end-to-end fixture | New independent aggregate/project/work output | PASS: synthetic Windows tests |
+| AC-002 | Read commit messages AND actual code changes | T3,T4 | Vague-message fixtures with distinctive diff | Both message and changed behavior present in evidence | PASS: synthetic Windows tests |
+| AC-003 | Support local Git and non-Git text directories | T3 | Synthetic Git and snapshot lifecycle tests | Correct evidence origin, deletion tracking, safe attribution | PASS: synthetic Windows tests |
+| AC-004 | Support public GitHub without a token | T4 | Paginated fake transport; later owner-selected real route | Public-only read access, pinned revisions, visible gaps | PASS: synthetic Windows tests; real GitHub acceptance pending |
+| AC-005 | Produce separate stable project/work JSON | T1,T6 | Inspect generation files and validate with two engines | Referenced work files exist; IDs persist | PASS: synthetic Windows tests |
+| AC-006 | Produce English portable schema-versioned JSON | T1,T7 | Schema/format tests and narrative inspection | Draft 2020-12 compatibility, English narratives, UTC dates | PASS: synthetic Windows tests |
+| AC-007 | Keep locators/secrets out of code and runtime artifacts | T2,T8 | Seeded privacy regression across every input/output surface | Seeded values absent; logical refs/redaction markers remain | PASS: synthetic Windows tests |
+| AC-008 | Keep private config/state/export outside repositories | T2,T7 | Resolved-path, nesting, ACL and export tests | Unsafe roots/escapes rejected before IO | PASS: synthetic Windows tests |
+| AC-009 | Incremental update, safe resume, unchanged-run idempotence | T3,T4,T5,T6 | Budget, failure, divergence and repeated-proposal cases | No lost ranges/duplicates; correct partial/no-op states | PASS: synthetic Windows tests |
+| AC-010 | Trace claims to evidence without inventing impact/ownership | T6 | Integrity, metric/deployment and attribution tests; manual sample | Unsupported claims rejected or marked unknown/unreviewed | PASS: synthetic Windows tests; owner truth/attribution review pending |
+| AC-011 | Partial packets retain unseen work and analysis backlog | T5,T6 | Upsert + exact evidence-accounting tests | No dropped work; ready only after complete collection+analysis | PASS: synthetic Windows tests |
+| AC-012 | Summarize every configured project, including gaps | T7 | All-project CLI/exit-code and manual harness flow | Valid JSON, accurate count/status, no hidden failures | PASS: synthetic Windows tests |
+| AC-013 | Resist stale writes/crashes/concurrent writers | T5,T6 | Fault-injected publication and lock conflict | Last valid generation preserved | PASS: synthetic Windows tests |
+| AC-014 | Untrusted source content cannot expand acquisition scope | T2,T4,T5,T8 | Path/ref/redirect/injection cases | No unauthorized source/network/execution side effects | PASS: synthetic Windows tests |
+| AC-015 | No email, sending, Resume/PDF, or application side effects | T7,T8 | Scope/code/dependency review and side-effect spies | Only private evidence/JSON outputs and allowed source reads | PASS: synthetic Windows tests |
+| AC-016 | Required verification and owner handoff are recorded | T8 | CI + final review + manual procedure | Actual results and remaining limits reported honestly | Automated checks passed; final review and owner acceptance tracked in execution report |
+| AC-017 | Notebook evidence contains source cells only | T3,T4,T8 | Parent/current cell-source and sensitive-output fixtures | No outputs, metadata, attachments, execution, or raw output patches; provenance retained | PASS: synthetic Windows tests |
+| AC-018 | Public-first and private-local registries compose safely | T2,T4,T7 | Single/multiple registry selection, conflict and visibility-change tests | Public-only runs work without local bindings; private sources remain local; no implicit fallback or duplication | PASS: synthetic Windows tests |
 
 ## Commands and execution evidence
 
@@ -296,3 +296,7 @@ Source-discovery amendment: add shared notebook source-cell normalization, disab
 Owner-directed revision: remove the unowned deck-ingestion source from private setup proposals; propose the reviewed model-training project; split public-GitHub and private-local registries with explicit composition and no fallback. Add an 8 MiB raw notebook budget so real source-only ML investigations fit while outputs remain excluded. Source approval remains pending; no product code or external delivery is authorized yet.
 Implementation evidence: PENDING throughout.
 
+
+## Execution update
+
+Owner-approved Phase 1 is implemented locally. Prospective and unapproved-source statements in the historical planning/review record above describe the earlier planning stage and are superseded by this update and docs/execution-report.md. No private artifacts are checked in.
