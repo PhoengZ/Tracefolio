@@ -6,6 +6,7 @@ from .collection import collect_projects
 from .errors import TracefolioError
 from .investigation import create_packet, extend_packet
 from .private_config import load_config_set, selected_config_paths
+from .proposals import apply_proposal
 from .sources.base import ContextRequest
 from .state import StateStore
 
@@ -32,6 +33,8 @@ def parser():
     context = commands.add_parser("context")
     for option in ("packet", "source", "revision", "path"):
         context.add_argument("--" + option, required=True)
+    apply = commands.add_parser("apply")
+    apply.add_argument("--proposal", required=True)
     return root
 
 
@@ -53,6 +56,9 @@ def main(argv=None) -> int:
             emit(result.as_dict())
             return 3 if result.partial else 0
         store = StateStore.open(config)
+        if args.command == "apply":
+            emit(apply_proposal(store, args.proposal).as_dict())
+            return 0
         if args.command == "packet":
             result = create_packet(store, args.project, work_id=args.work)
         elif args.command == "context":

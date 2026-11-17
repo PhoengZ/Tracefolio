@@ -30,3 +30,18 @@ def example_records():
     return tuple(json.loads((root / name).read_text(encoding="utf-8")) for name in
                  ("project.example.json", "work.example.json"))
 
+
+@pytest.fixture
+def knowledge_workspace(tmp_path, monkeypatch, route_payload):
+    from tracefolio.private_config import load_config
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "one.py").write_text("checkpoint = 1\n", encoding="utf-8")
+    private = tmp_path / "private"
+    private.mkdir()
+    path = private / "routes.json"
+    path.write_text(json.dumps(route_payload), encoding="utf-8")
+    monkeypatch.setenv("TRACEFOLIO_DEMO_ROOT", str(source))
+    monkeypatch.setenv("TRACEFOLIO_STATE_DIR", str(tmp_path / "state"))
+    return load_config(path), source, path
+

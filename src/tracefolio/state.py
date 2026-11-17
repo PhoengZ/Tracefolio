@@ -45,10 +45,11 @@ class AnalysisLedger(StrictModel):
     def coverage(self):
         sources = [s.model_copy(deep=True) for state in self.sources.values()
                    for s in state.coverage.sources]
+        unavailable = "unavailable_content" in self.analysis_exclusions.values()
         for source in sources:
-            source.analysis_state = "partial" if self.pending_analysis else "complete"
+            source.analysis_state = "partial" if self.pending_analysis or unavailable else "complete"
         complete = bool(sources) and all(s.collection_state == "complete" for s in sources)
-        complete = complete and not self.pending_analysis and not self.invalidated_work_ids
+        complete = complete and not self.pending_analysis and not self.invalidated_work_ids and not unavailable
         return Coverage(state="complete" if complete else "partial", sources=sources,
                         pending_evidence_count=len(self.pending_analysis))
 
@@ -247,21 +248,33 @@ class StateStore:
                              self.config.registry.limits, self.config.policy,
                              self.config.author_emails)
 
-    def publish(self, project_id, expected_base, project, works, ledger):
+    def publish(self, project_id, expected_base, project, works, ledger, *, proposal_digest=None):
+        work_ids = [work.work_id for work in works]
+        if (project.project_id != project_id
+                or any(work.project_id != project_id for work in works)
+                or len(work_ids) != len(set(work_ids))
+                or len(project.work_ids) != len(set(project.work_ids))
+                or set(project.work_ids) != set(work_ids)):
+            raise TracefolioError("publication_integrity")
+        ProjectRecord.model_validate(project.model_dump())
+        for work in works:
+            WorkRecord.model_validate(work.model_dump())
         with self.lock(project_id):
             current = self.read_state(project_id)
+            if proposal_digest and proposal_digest in current.accepted_proposals:
+                return PublicationResult("noop", current.accepted_proposals[proposal_digest])
             if (current.current_generation_id != expected_base
                     or current.collection_revision != ledger.collection_revision):
                 raise TracefolioError("stale_proposal")
             generation = "gen-" + uuid.uuid4().hex
             base = ("projects", logical_id(project_id), "generations", generation)
-            ProjectRecord.model_validate(project.model_dump())
             self._atomic_json(self._path(*base, "project.json"), project.model_dump(mode="json"))
             for work in works:
-                WorkRecord.model_validate(work.model_dump())
                 self._atomic_json(self._path(*base, "works", work.work_id + ".json"),
                                   work.model_dump(mode="json"))
             ledger.current_generation_id = generation
+            if proposal_digest:
+                ledger.accepted_proposals[proposal_digest] = generation
             # Pending analysis and semantic generation become visible via one pointer.
             self.save_state(project_id, ledger)
             return PublicationResult("published", generation)
