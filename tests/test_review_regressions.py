@@ -167,5 +167,3 @@ def test_generic_absolute_paths_redacted_from_packets_and_rejected_in_proposals(
     write_proposal(proposal, data)
     with pytest.raises(TracefolioError, match="unsafe_proposal_content"):
         apply_proposal(store, proposal)
-
-

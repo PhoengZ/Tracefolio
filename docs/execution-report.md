@@ -21,6 +21,7 @@ Local environment: Windows, Python 3.12.3, Git 2.49.0.windows.1; Pydantic 2.13.3
 | Full Windows suite after review fixes | 114 passed in 88.90 seconds |
 | Ruff | Passed |
 | Schema drift | Passed |
+| Offline wheel build | Passed, native process exit 0 |
 | Real private registry validation | Passed: 15 configured, 11 enabled |
 | Linux | CI defined; not executed locally |
 | Fresh whole-branch review | Seven reproduced Critical/Important findings, all fixed with RED-to-GREEN regressions; no deferred minors or declined judgments |
