@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import Field
 
-from .common import Artifact, Id, StrictModel, Utc, utc_now
+from .common import Artifact, Coverage, Id, StrictModel, Utc, utc_now
 from .knowledge import ProjectRecord, WorkRecord
 
 
@@ -16,6 +16,7 @@ class PortfolioEntry(StrictModel):
     generation_id: Id | None = None
     project: ProjectRecord | None = None
     works: list[WorkRecord] = Field(default_factory=list)
+    coverage: Coverage | None = None
     errors: list[SafeError] = Field(default_factory=list)
 
 

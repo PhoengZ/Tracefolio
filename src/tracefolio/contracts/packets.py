@@ -7,6 +7,13 @@ from .evidence import EvidenceRecord
 from .knowledge import WorkContent, WorkRecord
 
 
+class PacketWorkRoute(StrictModel):
+    work_id: Id
+    source_id: Id
+    context: str
+    include_paths: list[str]
+
+
 class InvestigationPacket(Artifact):
     packet_id: Id
     packet_digest: str
@@ -20,6 +27,7 @@ class InvestigationPacket(Artifact):
     evidence: list[EvidenceRecord]
     prior_works: list[WorkRecord] = Field(default_factory=list)
     configured_work_ids: list[Id] = Field(default_factory=list)
+    work_routes: list[PacketWorkRoute] = Field(default_factory=list)
     known_work_ids: list[Id] = Field(default_factory=list)
     coverage: Coverage
 

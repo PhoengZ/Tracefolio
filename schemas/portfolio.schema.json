@@ -200,6 +200,17 @@
           "title": "Works",
           "type": "array"
         },
+        "coverage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Coverage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "errors": {
           "items": {
             "$ref": "#/$defs/SafeError"

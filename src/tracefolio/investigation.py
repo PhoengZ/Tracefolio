@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from .collection import project_fingerprint, provider_for
-from .contracts.packets import InvestigationPacket
+from .contracts.packets import InvestigationPacket, PacketWorkRoute
 from .errors import TracefolioError
 from .privacy import path_allowed, sanitize_text
 from .sources.base import ContextRequest, canonical, digest
@@ -84,6 +84,12 @@ def create_packet(store: StateStore, project_id: str, *, work_id=None) -> Packet
                 allowed_evidence_ids=list(items),
                 pending_evidence_ids=pending, evidence=list(items.values()),
                 prior_works=list(works.values()), configured_work_ids=configured,
+                work_routes=[PacketWorkRoute(
+                    work_id=unit.work_id, source_id=source.source_id,
+                    context=sanitize_text(unit.context, store.config.policy).text,
+                    include_paths=[sanitize_text(path, store.config.policy).text
+                                   for path in unit.include_paths])
+                    for source in project.sources for unit in source.work_units],
                 known_work_ids=sorted(previous), coverage=ledger.coverage(),
             ))
 
