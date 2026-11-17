@@ -5,6 +5,12 @@ from pydantic import Field
 from .common import Artifact, Coverage, Id, StrictModel, Utc, utc_now
 
 
+class CellProvenance(StrictModel):
+    cell_index: int = Field(ge=0)
+    cell_type: Literal["code", "markdown"]
+    source_digest: str
+
+
 class EvidenceRecord(Artifact):
     evidence_id: str
     project_id: Id
@@ -18,6 +24,8 @@ class EvidenceRecord(Artifact):
     evidence_type: Literal["code", "measurement", "deployment", "user_note"] = "code"
     completeness: Literal["complete", "partial", "unavailable"] = "complete"
     redactions: list[str] = Field(default_factory=list)
+    normalization: Literal["notebook-source-v1"] | None = None
+    cells: list[CellProvenance] = Field(default_factory=list)
 
 
 class SourceCursor(Artifact):
@@ -27,6 +35,7 @@ class SourceCursor(Artifact):
     pending: list[str] = Field(default_factory=list)
     processed: list[str] = Field(default_factory=list)
     inventory: dict[str, str] = Field(default_factory=dict)
+    baseline: dict[str, str] = Field(default_factory=dict)
     observed_at: Utc | None = None
 
 
