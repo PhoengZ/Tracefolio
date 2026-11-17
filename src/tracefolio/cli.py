@@ -46,7 +46,8 @@ def parser():
 
 
 def emit(value):
-    print(json.dumps(value, ensure_ascii=False, separators=(",", ":")))
+    # ASCII escapes are a UTF-8 subset even under legacy redirected Windows stdio.
+    print(json.dumps(value, ensure_ascii=True, separators=(",", ":")))
 
 
 def main(argv=None) -> int:

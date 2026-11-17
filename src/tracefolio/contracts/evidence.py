@@ -33,6 +33,7 @@ class SourceCursor(Artifact):
     head: str | None = None
     target: str | None = None
     pending: list[str] = Field(default_factory=list)
+    verification_pending: list[str] = Field(default_factory=list)
     processed: list[str] = Field(default_factory=list)
     inventory: dict[str, str] = Field(default_factory=dict)
     baseline: dict[str, str] = Field(default_factory=dict)

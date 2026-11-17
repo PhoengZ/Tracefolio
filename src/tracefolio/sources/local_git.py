@@ -1,6 +1,7 @@
 import difflib
 import os
 import subprocess
+from pathlib import Path
 
 from ..contracts.evidence import CollectionResult, ContextResult, SourceCursor
 from ..errors import TracefolioError
@@ -28,6 +29,12 @@ def git(request: SourceRequest, *args: str, optional=False) -> bytes | None:
 
 
 class LocalGitProvider:
+    def _require_root(self, req):
+        top = git(req, "rev-parse", "--show-toplevel").decode("utf-8", "replace").strip()
+        if Path(top).resolve() != Path(req.locator).resolve():
+            raise TracefolioError("git_root_required",
+                                  "Bind the repository root and narrow scope using include paths.")
+
     def _blob(self, req, revision, path, max_bytes=None):
         if revision is None:
             return "", {}, 0
@@ -52,12 +59,14 @@ class LocalGitProvider:
     def text_at(self, req, revision, path):
         if not path_allowed(path, req.source.include_paths, req.source.exclude_paths):
             raise TracefolioError("context_out_of_scope")
+        self._require_root(req)
         return self._blob(req, revision, path)[0]
 
     def read_context(self, request: ContextRequest) -> ContextResult:
         req = request.source_request
         if not path_allowed(request.path, req.source.include_paths, req.source.exclude_paths):
             raise TracefolioError("context_out_of_scope")
+        self._require_root(req)
         text, metadata, _ = self._blob(req, request.revision, request.path)
         return ContextResult(
             evidence=[evidence(req, request.revision, request.path, text, origin="context",
@@ -66,6 +75,7 @@ class LocalGitProvider:
         )
 
     def collect_source(self, req: SourceRequest, previous: SourceCursor | None) -> CollectionResult:
+        self._require_root(req)
         previous = previous or SourceCursor()
         current = git(req, "rev-parse", "--verify", "--end-of-options",
                       f"{req.source.ref or 'HEAD'}^{{commit}}").decode().strip()

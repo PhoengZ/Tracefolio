@@ -238,14 +238,14 @@ assert after == before
 **Consumes:** All completed tasks.
 **Produces:** Synthetic code-only CI, requirement evidence, and a documented owner-run real-source acceptance procedure.
 
-- [ ] Add adversarial fixtures containing a fake credential in a deleted diff line, an absolute private directory, a private endpoint, a prompt-injection README, a hostile source path/ref, a stale packet, and a fake third-party author.
-- [ ] Run the whole pipeline and assert none of the seeded sensitive strings appear in serialized evidence, packets, project/work/portfolio JSON, stdout, stderr, or tracked sample files. Instructions embedded in evidence must remain data; no side-effect tool, subprocess, HTTP request, or file outside the configured scope may be triggered by them.
-- [ ] Add/verify cross-platform tests for Windows paths/junctions/ACL setup and Linux symlinks/modes; put Python 3.12 tests on both OS families in CI. Local fixtures are disposable and contain no user work. CI does not connect to real GitHub project routes or LLMs.
-- [ ] Run python -m ruff check .; python -m pytest -q; python -m tracefolio.schema_export --check as separate commands. Expected: exit 0 each. Record actual versions, counts, and results; do not mark unavailable required checks passed.
-- [ ] Review the final implementation for bugs, requirement gaps, error paths, side effects, and unnecessary abstractions using the installed Superpowers code-review workflow. Fix blockers and rerun affected checks after the last relevant edit.
+- [x] Add adversarial fixtures containing a fake credential in a deleted diff line, an absolute private directory, a private endpoint, a prompt-injection README, a hostile source path/ref, a stale packet, and a fake third-party author.
+- [x] Run the whole pipeline and assert none of the seeded sensitive strings appear in serialized evidence, packets, project/work/portfolio JSON, stdout, stderr, or tracked sample files. Instructions embedded in evidence must remain data; no side-effect tool, subprocess, HTTP request, or file outside the configured scope may be triggered by them.
+- [x] Add/verify cross-platform tests for Windows paths/junctions/ACL setup and Linux symlinks/modes; put Python 3.12 tests on both OS families in CI. Local fixtures are disposable and contain no user work. CI does not connect to real GitHub project routes or LLMs.
+- [x] Run python -m ruff check .; python -m pytest -q; python -m tracefolio.schema_export --check as separate commands. Expected: exit 0 each. Record actual versions, counts, and results; do not mark unavailable required checks passed.
+- [x] Review the final implementation for bugs, requirement gaps, error paths, side effects, and unnecessary abstractions using the installed Superpowers code-review workflow. Fix blockers and rerun affected checks after the last relevant edit.
 - [ ] Owner manual acceptance, when they choose to execute: use privately configured local/GitHub sources; ask the harness for a full summary; inspect at least one real message+diff-derived work item and its provenance; verify unknown impact/ownership is not invented. Add a route, add a commit, and rerun unchanged data. Record results without checking private outputs into Git.
-- [ ] Do not connect Gmail, create drafts, send test mail, generate resumes/PDFs, publish outputs, or apply for jobs. Stop at the semantic-layer JSON deliverable.
-- [ ] Commit task-owned verification/docs: test: verify privacy and cross-platform knowledge workflow.
+- [x] Do not connect Gmail, create drafts, send test mail, generate resumes/PDFs, publish outputs, or apply for jobs. Stop at the semantic-layer JSON deliverable.
+- [x] Commit task-owned verification/docs: test: verify privacy and cross-platform knowledge workflow.
 
 ## Acceptance matrix
 

@@ -152,6 +152,11 @@ def apply_proposal(store: StateStore, proposal_path: Path) -> PublicationResult:
         if not pending_related and complete_sources:
             ledger.invalidated_work_ids.remove(work_id)
 
+    pending_sources = {store.read_evidence(ref).source_id for ref in ledger.pending_analysis}
+    invalidated_sources = {source for work_id in ledger.invalidated_work_ids
+                           for source in works[work_id].provenance.source_ids}
+    ledger.reconciliation_sources = [source for source in ledger.reconciliation_sources
+                                     if source in pending_sources | invalidated_sources]
     coverage = ledger.coverage()
     configured = {w.work_id for s in project.sources for w in s.work_units}
     unknowns = []

@@ -2,7 +2,7 @@
 
 Pydantic models in `src/tracefolio/contracts` are the contract source. `python -m tracefolio.schema_export` regenerates the eight offline Draft 2020-12 schemas; `--check` detects drift. Runtime validators enforce additional binding, identity, reference, readiness, and privacy rules beyond JSON Schema. All public artifacts use schema version `1.0.0`, English keys, `language: en`, snake_case, and UTC timestamps ending in `Z`. Narratives are English by harness instruction; Unicode names and source code remain valid.
 
-Logical project/work/source IDs are lowercase kebab-case. Evidence is content addressed after sanitization and normalization. A work's identity is `(project_id, work_id)`; record revisions increment on semantic replacement. Source changes add evidence and invalidate affected works, without rewriting historical generation files. Repeated identical proposals are idempotent. A packet digest and collection/base-generation revision bind proposals to a precise context.
+Logical project/work/source IDs are lowercase kebab-case. Evidence is content addressed after sanitization and normalization. A work's identity is `(project_id, work_id)`; record revisions increment on semantic replacement. Source changes add evidence and invalidate affected works, without rewriting historical generation files. History rewrites persist `history_reconciliation_required` coverage until affected work and evidence have been analyzed again, even when replayed evidence already exists. Repeated identical proposals are idempotent. A packet digest and collection/base-generation revision bind proposals to a precise context.
 
 Private state layout:
 

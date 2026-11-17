@@ -65,6 +65,7 @@ def summarize_portfolio(store, registry):
 def export_portfolio(store, snapshot, path):
     target = validate_export_path(store.config, Path(path))
     # State already has an owner-only ACL/mode. Never alter an arbitrary export folder's ACL.
-    if not target.is_relative_to(store.root.resolve()) or target == store.root.resolve():
-        raise TracefolioError("unsafe_export", "Export must be inside the private state directory.")
+    export_root = store.root.resolve() / "exports"
+    if not target.is_relative_to(export_root) or target == export_root:
+        raise TracefolioError("unsafe_export", "Export must be inside the private state's exports directory.")
     store._atomic_json(target, snapshot.model_dump(mode="json"))

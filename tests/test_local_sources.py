@@ -177,6 +177,10 @@ def test_snapshot_file_budget_resume_and_denied_paths(tmp_path):
     first = provider.collect_source(req, None)
     assert first.coverage.state == "partial"
     second = provider.collect_source(req, first.cursor)
+    for _ in range(4):
+        if second.coverage.state == "complete":
+            break
+        second = provider.collect_source(req, second.cursor)
     assert second.coverage.state == "complete"
     assert "DO_NOT_READ" not in str(second.evidence)
 

@@ -11,7 +11,7 @@ from .errors import TracefolioError
 @dataclass(frozen=True)
 class PrivacyPolicy:
     literals: tuple[str, ...] = ()
-    epoch: str = "redaction-v1"
+    epoch: str = "redaction-v2"
 
 
 @dataclass(frozen=True)
@@ -32,7 +32,8 @@ def sanitize_text(text: str, policy: PrivacyPolicy) -> SanitizedText:
         ("url", r"(?i)\b(?:https?|postgresql?|redis|mongodb(?:\+srv)?|file)://[^\s<>\"'\])]+"),
         ("email", r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),
         ("absolute_path", r"(?i)\b[A-Z]:[\\/][^\s\"'<>\])]+"),
-        ("absolute_path", r"(?<![\w:/])/(?:home|Users|tmp|var|mnt|private|opt|content)/[^\s\"'<>\])]+"),
+        ("absolute_path", r"(?<![\w:*?/])/(?!/)[^\s\"'<>\[\](){},;]+"),
+        ("absolute_path", r"(?<!\\)\\\\[^\s\"'<>\[\](){},;]+"),
         ("private_ip", r"\b(?:10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})\b"),
     ]
     for label, pattern in patterns:

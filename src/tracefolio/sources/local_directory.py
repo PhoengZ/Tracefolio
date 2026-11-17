@@ -46,7 +46,8 @@ class LocalDirectoryProvider:
 
     def collect_source(self, req: SourceRequest, previous: SourceCursor | None) -> CollectionResult:
         previous = previous or SourceCursor()
-        if previous.pending:
+        verification = list(previous.verification_pending)
+        if previous.target is not None or previous.pending or verification:
             names = list(previous.pending)
             inventory = dict(previous.inventory)
             baseline = dict(previous.baseline)
@@ -69,6 +70,16 @@ class LocalDirectoryProvider:
             baseline = dict(previous.inventory)
         selected = names[:req.limits.max_files_per_source]
         records, retry, limitations, invalidated = [], [], [], []
+        deletions = set()
+
+        def removed(path):
+            last = inventory.pop(path, None) or baseline.get(path)
+            if last and path not in deletions:
+                records.append(evidence(req, "deleted-" + last, path,
+                                        "File deleted from source snapshot."))
+                invalidated.append(path)
+                deletions.add(path)
+
         total = 0
         for path in selected:
             try:
@@ -84,41 +95,57 @@ class LocalDirectoryProvider:
                     invalidated.append(path)
             except TracefolioError as error:
                 if error.code == "source_missing":
-                    inventory.pop(path, None)
+                    removed(path)
                     continue
                 retry.append(path)
                 limitations.append(error.code)
         pending = retry + names[len(selected):]
         if not pending:
-            # Verify earlier reads too: a later file may have changed them.
-            for path, expected in list(inventory.items()):
+            # Verify the pinned inventory incrementally too. A whole-inventory
+            # reread in every run would never finish under a small byte budget.
+            verification = verification or sorted(inventory)
+            slots = req.limits.max_files_per_source - len(selected)
+            remaining_verification = []
+            for index, path in enumerate(verification):
+                if index >= slots:
+                    remaining_verification = verification[index:]
+                    limitations.append("verification_pending")
+                    break
                 try:
                     verified, _, size = self._read(
                         req, path, remaining=req.limits.max_total_source_bytes - total)
                     total += size
-                    if total > req.limits.max_total_source_bytes:
-                        raise TracefolioError("source_byte_budget", exit_code=3)
-                    if hashlib.sha256(verified.encode()).hexdigest() != expected:
+                    if hashlib.sha256(verified.encode()).hexdigest() != inventory[path]:
                         raise TracefolioError("unstable_observation", exit_code=3)
                 except TracefolioError as error:
                     if error.code == "source_missing":
-                        inventory.pop(path, None)
+                        removed(path)
                         continue
+                    if error.code == "source_byte_budget":
+                        remaining_verification = verification[index:]
+                        limitations.append(error.code)
+                        break
                     pending.append(path)
                     limitations.append(error.code)
-        if not pending:
-            for removed in sorted(baseline.keys() - inventory.keys()):
-                records.append(evidence(req, "deleted-" + baseline[removed], removed,
-                                        "File deleted from source snapshot."))
-                invalidated.append(removed)
+                    # Refresh this file, then verify the new inventory again.
+                    break
+            verification = remaining_verification
+        complete = not pending and not verification
+        if complete:
+            for deleted_path in sorted(baseline.keys() - inventory.keys()):
+                if deleted_path not in deletions:
+                    records.append(evidence(req, "deleted-" + baseline[deleted_path], deleted_path,
+                                            "File deleted from source snapshot."))
+                    invalidated.append(deleted_path)
         else:
             limitations.append("pending_files")
         revision = "sha256:" + digest(inventory)
         cursor = SourceCursor(
             fingerprint=previous.fingerprint,
-            head=previous.head if pending else revision,
-            target=revision if pending else None, pending=pending,
-            inventory=inventory, baseline=baseline if pending else {},
+            head=previous.head if not complete else revision,
+            target=revision if not complete else None, pending=pending,
+            verification_pending=verification,
+            inventory=inventory, baseline=baseline if not complete else {},
             observed_at=utc_now(),
         )
         return CollectionResult(evidence=records, cursor=cursor,

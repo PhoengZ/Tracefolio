@@ -53,7 +53,8 @@ def create_packet(store: StateStore, project_id: str, *, work_id=None) -> Packet
         generation = store.current(project_id, ledger)
         previous = {w.work_id: w for w in effective_works(generation, ledger)}
         configured = sorted({w.work_id for s in project.sources for w in s.work_units})
-        if not ledger.pending_analysis and not ledger.invalidated_work_ids and generation and not work_id:
+        if (not ledger.pending_analysis and not ledger.invalidated_work_ids
+                and not ledger.reconciliation_sources and generation and not work_id):
             return PacketResult("noop")
         if not ledger.evidence_ids and not configured:
             return PacketResult("no_evidence")

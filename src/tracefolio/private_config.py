@@ -130,7 +130,7 @@ def load_config_set(config_paths: list[Path]) -> ResolvedConfig:
         if (state.is_relative_to(root) or root.is_relative_to(state)
                 or any(p.is_relative_to(root) for p in paths)):
             raise TracefolioError("unsafe_root")
-    epoch = "redaction-v1-" + hashlib.sha256(
+    epoch = "redaction-v2-" + hashlib.sha256(
         json.dumps(sorted(extra_redactions)).encode()).hexdigest()
     policy = PrivacyPolicy(tuple(v for v in private_values if v), epoch)
     return ResolvedConfig(registry, state, paths, locators, policy,

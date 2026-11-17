@@ -203,11 +203,13 @@ class GitHubPublicProvider:
             remaining = retry + remaining[len(queue):]
         if remaining or not listed:
             limitations.append("pending_commits")
+        range_complete = listed and not remaining and not limitations
         if current != target:
             limitations.append("head_changed")
-        complete = listed and not remaining and not limitations
+        complete = range_complete and current == target
         cursor = SourceCursor(
-            head=target if complete else previous.head, target=None if complete else target,
+            head=target if range_complete else previous.head,
+            target=None if range_complete else target,
             pending=remaining, page=page, listed_complete=listed, base_head=base,
             fingerprint=previous.fingerprint,
         )

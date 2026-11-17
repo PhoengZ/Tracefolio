@@ -28,6 +28,11 @@ def test_disappearing_file_does_not_stall_snapshot_continuation(tmp_path):
     assert first.cursor.pending == ["b.py"]
     (root / "b.py").unlink()
     second = provider.collect_source(req, first.cursor)
+    for _ in range(4):
+        assert "b.py" not in second.cursor.pending
+        if second.coverage.state == "complete":
+            break
+        second = provider.collect_source(req, second.cursor)
     assert second.coverage.state == "complete" and second.cursor.pending == []
     assert set(second.cursor.inventory) == {"a.py"}
 

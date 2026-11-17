@@ -41,15 +41,21 @@ class AnalysisLedger(StrictModel):
     invalidated_work_ids: list[str] = Field(default_factory=list)
     accepted_proposals: dict[str, str] = Field(default_factory=dict)
     analysis_exclusions: dict[str, str] = Field(default_factory=dict)
+    reconciliation_sources: list[str] = Field(default_factory=list)
 
     def coverage(self):
         sources = [s.model_copy(deep=True) for state in self.sources.values()
                    for s in state.coverage.sources]
         unavailable = "unavailable_content" in self.analysis_exclusions.values()
         for source in sources:
-            source.analysis_state = "partial" if self.pending_analysis or unavailable else "complete"
+            if source.source_id in self.reconciliation_sources:
+                source.limitations.append("history_reconciliation_required")
+            source.analysis_state = "partial" if (
+                self.pending_analysis or unavailable or self.invalidated_work_ids
+                or source.source_id in self.reconciliation_sources) else "complete"
         complete = bool(sources) and all(s.collection_state == "complete" for s in sources)
-        complete = complete and not self.pending_analysis and not self.invalidated_work_ids and not unavailable
+        complete = (complete and not self.pending_analysis and not self.invalidated_work_ids
+                    and not self.reconciliation_sources and not unavailable)
         return Coverage(state="complete" if complete else "partial", sources=sources,
                         pending_evidence_count=len(self.pending_analysis))
 
@@ -93,6 +99,9 @@ def effective_works(generation, ledger):
         if work.work_id in ledger.invalidated_work_ids:
             work.review_status = "unreviewed"
             work.analysis_status = "partial"
+            message = "Source or history changed; compare prior evidence with current pinned source revisions."
+            if message not in work.unknowns:
+                work.unknowns.append(message)
             for claim in work.claims:
                 claim.status = "needs_review"
         result.append(work)

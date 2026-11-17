@@ -18,14 +18,29 @@ Local environment: Windows, Python 3.12.3, Git 2.49.0.windows.1; Pydantic 2.13.3
 | Proposal publication | 21 tests passed; exact evidence accounting, unsupported claims, stale writes, work retention, atomic pointer safety and reapplication verified |
 | Portfolio/CLI | 8 tests passed; every configured project, current overlays, private exports, all exit classes, three-source-kind pipeline and config-only addition verified |
 | Adversarial pipeline | 4 tests passed; deleted-line credentials, private paths/endpoints, generated unsafe content, source injection as data, third-party attribution, disappearing snapshot files verified |
-| Full Windows suite | 103 passed in 77.11 seconds |
+| Full Windows suite after review fixes | 114 passed in 88.90 seconds |
 | Ruff | Passed |
 | Schema drift | Passed |
 | Real private registry validation | Passed: 15 configured, 11 enabled |
 | Linux | CI defined; not executed locally |
-| Fresh whole-branch review | Pending final review |
+| Fresh whole-branch review | Seven reproduced Critical/Important findings, all fixed with RED-to-GREEN regressions; no deferred minors or declined judgments |
+| Real notebook-project smoke | Four source records, three unreviewed work records; Pydantic and Draft 2020-12 private exports validated; unchanged collection added zero evidence and proposal reapplication was a no-op |
 
-Automated tests cannot establish truth, impact, ownership, or exhaustive secret removal. English narrative quality is inspected by the harness/owner, not guaranteed by schema validation. All machine output remains unreviewed. Real-source full-portfolio/LLM acceptance remains owner-run using [manual-acceptance.md](manual-acceptance.md); no claim is made that every configured project already has populated semantic records.
+Automated tests cannot establish truth, impact, ownership, or exhaustive secret removal. English narrative quality is inspected by the harness/owner, not guaranteed by schema validation. All machine output remains unreviewed. Real-source full-portfolio/LLM acceptance remains owner-run using [manual-acceptance.md](manual-acceptance.md). The private aggregate currently contains one ready project, ten pending projects and four disabled projects. No claim is made that every configured project already has populated semantic records. A fresh private state root is used for redaction-v2; earlier smoke artifacts remain private and are not selected by current runs.
+
+## Fresh review fixes
+
+The reviewer reproduced these issues using disposable fixtures. Every case failed before its fix and the full 114-test suite passed after all fixes; no second review was substituted for regression verification.
+
+| Finding | Fix and regression |
+|---|---|
+| Nested local-Git root could read neighboring repository files | Require exact repository top-level binding before content acquisition; `test_git_binding_cannot_escape_via_enclosing_repository` covers collection and context |
+| Backward reset could leave stale work ready | Persist source reconciliation, invalidate source-backed work even when replaying existing evidence, expose the gap until reanalysis; `test_backward_reset_invalidates_ready_work_and_surfaces_reconciliation` covers repeated collection and recovery through pinned context |
+| Snapshot verification could never finish under a small byte budget | Persist bounded verification progress; `test_snapshot_verification_resumes_under_byte_budget` reaches completion across runs |
+| GitHub head movement could trap an exhausted old traversal | Finish the pinned range checkpoint while keeping newer-head coverage partial, then collect the next range; `test_github_finishes_pinned_range_before_following_new_head` |
+| Export could overwrite CURRENT or other internal artifacts | Restrict output to the dedicated private `exports/` subtree; `test_exports_cannot_overwrite_internal_state` checks byte-preservation for three reserved targets |
+| Legacy Windows redirected stdout could corrupt Unicode JSON | ASCII-escape stdout JSON, a UTF-8-compatible representation; `test_cli_json_is_utf8_even_with_legacy_stdio_encoding` checks captured subprocess bytes |
+| Generic POSIX and UNC paths bypassed redaction | Broaden path detection and version the privacy algorithm; three `test_generic_absolute_paths_redacted_from_packets_and_rejected_in_proposals` cases exercise collection through proposal rejection |
 
 ## Implementation rulings
 
@@ -34,8 +49,8 @@ Automated tests cannot establish truth, impact, ownership, or exhaustive secret 
 3. Anchored private-route ignore rules at the repository root so `schemas/routes.schema.json` stays tracked. The cost if wrong is that additional private filenames placed elsewhere in the checkout would need explicit exclusion; private files belong outside the checkout regardless.
 4. CURRENT selects an immutable control revision containing the ledger and generation reference. This makes backlog consumption and semantic publication atomic together; the cost is extra small immutable metadata revisions.
 5. Added optional `packet create --work` to include full prior context for a deliberate existing-work update. Oversized context blocks instead of truncating; the cost is that a large work item can require an increased packet budget.
-6. Restricted private exports to the secured state root instead of altering arbitrary folders' permissions. Proposal inputs can remain outside the source/checkout; the cost is that another export destination needs a deliberate owner copy.
+6. Restricted private exports to the secured state's dedicated `exports/` subtree instead of altering arbitrary folders' permissions. Proposal inputs can remain outside the source/checkout; the cost is that another export destination needs a deliberate owner copy. The subtree restriction also prevents overwriting internal state.
 
 ## Deferred minor findings
 
-Pending final review.
+None. The reviewer declined no behaviors; all seven findings entered the fix pass.

@@ -76,6 +76,12 @@ def collect_projects(config, project_ids, *, providers=None):
                         result.cursor.fingerprint = fingerprint
                         ledger.sources[source.source_id] = SourceState(
                             cursor=result.cursor, coverage=result.coverage, fingerprint=fingerprint)
+                        changed_paths.update((source.source_id, path)
+                                             for path in result.invalidated_paths)
+                        if "history_reconciled" in result.warnings:
+                            changed_sources.add(source.source_id)
+                            if source.source_id not in ledger.reconciliation_sources:
+                                ledger.reconciliation_sources.append(source.source_id)
                         for record in result.evidence:
                             store.put_evidence(record)
                             is_new = record.evidence_id not in ledger.evidence_ids
@@ -101,6 +107,8 @@ def collect_projects(config, project_ids, *, providers=None):
                 removed_sources = ledger.sources.keys() - active_sources
                 changed_sources.update(removed_sources)
                 ledger.sources = {k: v for k, v in ledger.sources.items() if k in active_sources}
+                ledger.reconciliation_sources = [s for s in ledger.reconciliation_sources
+                                                 if s in active_sources]
                 if generation:
                     if ledger.route_fingerprint != project_fingerprint(config, project):
                         invalidated.update(w.work_id for w in generation.works)

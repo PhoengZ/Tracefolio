@@ -58,7 +58,7 @@ Acceptance prompt for the agent working in this checkout:
 
 > Summarize all configured projects and work items. Update changed sources first. Return English portfolio JSON with evidence references, unknowns, coverage, and review status. Do not create a resume or send any messages.
 
-`summarize` reads existing knowledge; the agent follows the full workflow to update it first. Every configured project appears, including disabled, pending, partial, and failed projects. Exit codes: `0` success/ready, `2` invalid or unsafe input, `3` incomplete/retryable, `4` operational failure. JSON stdout and safe JSON diagnostics on stderr are separate. Export with `--out <absolute-path-inside-private-state>`; no public export exists.
+`summarize` reads existing knowledge; the agent follows the full workflow to update it first. Every configured project appears, including disabled, pending, partial, and failed projects. Exit codes: `0` success/ready, `2` invalid or unsafe input, `3` incomplete/retryable, `4` operational failure. JSON stdout uses ASCII escapes (a UTF-8 subset); persisted files are UTF-8. Safe JSON diagnostics use stderr. Export with `--out <absolute-private-state>/exports/portfolio.json`; other state namespaces are protected from export writes. No public export exists.
 
 ## Verification and limits
 
