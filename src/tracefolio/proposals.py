@@ -25,6 +25,44 @@ def _safe_strings(value, policy):
             _safe_strings(item, policy)
 
 
+def _resolve_proposal(proposal: AnalysisProposal, packet) -> AnalysisProposal:
+    aliases = packet.evidence_aliases or {}
+
+    def resolve(ref):
+        return aliases.get(ref, ref)
+
+    excluded = [item.model_copy(update={"evidence_id": resolve(item.evidence_id)})
+                for item in proposal.excluded_evidence]
+    excluded_ids = {item.evidence_id for item in excluded}
+    if proposal.analyzed_evidence_ids == ["*"]:
+        analyzed = [eid for eid in packet.allowed_evidence_ids if eid not in excluded_ids]
+    else:
+        analyzed = [resolve(ref) for ref in proposal.analyzed_evidence_ids]
+    updates = []
+    for update in proposal.work_updates:
+        claims = []
+        for claim in update.claims:
+            metric = (claim.metric.model_copy(update={
+                "evidence_refs": [resolve(r) for r in claim.metric.evidence_refs]})
+                if claim.metric else None)
+            claims.append(claim.model_copy(update={
+                "evidence_refs": [resolve(r) for r in claim.evidence_refs],
+                "metric": metric,
+            }))
+        skills = [skill.model_copy(update={
+            "evidence_refs": [resolve(r) for r in skill.evidence_refs]})
+            for skill in update.skills]
+        prov = update.provenance.model_copy(update={
+            "evidence_refs": [resolve(r) for r in update.provenance.evidence_refs]})
+        updates.append(update.model_copy(update={
+            "claims": claims, "skills": skills, "provenance": prov}))
+    return proposal.model_copy(update={
+        "analyzed_evidence_ids": analyzed,
+        "excluded_evidence": excluded,
+        "work_updates": updates,
+    })
+
+
 def apply_proposal(store: StateStore, proposal_path: Path) -> PublicationResult:
     path = validate_export_path(store.config, Path(proposal_path))
     try:
@@ -63,6 +101,14 @@ def apply_proposal(store: StateStore, proposal_path: Path) -> PublicationResult:
         if original != item or item.project_id != proposal.project_id:
             raise TracefolioError("packet_integrity")
         evidence[item.evidence_id] = item
+    for prior_work in packet.prior_works:
+        for ref in work_evidence_refs(prior_work):
+            if ref not in evidence:
+                original = store.read_evidence(ref)
+                if original.project_id != proposal.project_id:
+                    raise TracefolioError("packet_integrity")
+                evidence[ref] = original
+    proposal = _resolve_proposal(proposal, packet)
     accounted = proposal.analyzed_evidence_ids + [
         item.evidence_id for item in proposal.excluded_evidence]
     if len(accounted) != len(set(accounted)) or set(accounted) != allowed:
@@ -79,10 +125,12 @@ def apply_proposal(store: StateStore, proposal_path: Path) -> PublicationResult:
         if update.review_status != "unreviewed":
             raise TracefolioError("machine_review_forbidden")
         old = works.get(update.work_id)
-        if old and (update.work_id not in prior or not work_evidence_refs(old) <= allowed):
+        prior_refs = work_evidence_refs(old) if old else set()
+        if old and (update.work_id not in prior
+                    or work_evidence_refs(prior[update.work_id]) != prior_refs):
             raise TracefolioError("prior_context_required")
         refs = work_evidence_refs(update)
-        if not refs <= allowed:
+        if not refs <= (allowed | prior_refs):
             raise TracefolioError("foreign_evidence")
         if refs & excluded:
             raise TracefolioError("excluded_evidence_reference")
@@ -93,12 +141,15 @@ def apply_proposal(store: StateStore, proposal_path: Path) -> PublicationResult:
             raise TracefolioError("ready_requires_evidence")
         if update.implementation_status in {"prototype", "implemented", "deployed"} and not refs:
             raise TracefolioError("implementation_requires_evidence")
+        reconciling = bool(old and any(
+            s in ledger.reconciliation_sources for s in old.provenance.source_ids))
+        merged_refs = refs if (not old or reconciling) else (refs | prior_refs)
         if update.contribution != "unverified" and (
                 not store.config.author_emails or not any(
-                    evidence[ref].attribution == "self" for ref in refs)):
+                    evidence[ref].attribution == "self" for ref in merged_refs)):
             raise TracefolioError("ownership_unverified")
         if update.implementation_status == "deployed" and not any(
-                evidence[ref].evidence_type in {"deployment", "user_note"} for ref in refs):
+                evidence[ref].evidence_type in {"deployment", "user_note"} for ref in merged_refs):
             raise TracefolioError("deployment_unverified")
         for claim in update.claims:
             if claim.status == "user_asserted" and not any(
@@ -108,7 +159,7 @@ def apply_proposal(store: StateStore, proposal_path: Path) -> PublicationResult:
                     evidence[ref].evidence_type in {"measurement", "user_note"}
                     for ref in claim.metric.evidence_refs):
                 raise TracefolioError("measurement_unverified")
-        source_ids = {evidence[ref].source_id for ref in refs}
+        source_ids = {evidence[ref].source_id for ref in merged_refs}
         if (not source_ids <= active_sources
                 or not set(update.provenance.source_ids) <= source_ids):
             raise TracefolioError("evidence_source_out_of_scope")
@@ -124,7 +175,7 @@ def apply_proposal(store: StateStore, proposal_path: Path) -> PublicationResult:
             **update.model_dump(exclude={"provenance", "review_status"}),
             project_id=project.project_id, record_revision=old.record_revision + 1 if old else 1,
             review_status="unreviewed", provenance=Provenance(
-                source_ids=sorted(source_ids), evidence_refs=sorted(refs),
+                source_ids=sorted(source_ids), evidence_refs=sorted(merged_refs),
                 collection_ids=update.provenance.collection_ids,
                 packet_ids=sorted(old_packets | {packet.packet_id})))
         works[update.work_id] = record

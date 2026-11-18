@@ -65,14 +65,19 @@ def mandatory_allowed(path: str) -> bool:
     denied_dirs = {".git", ".venv", "venv", "node_modules", "vendor", "dist", "build",
                    "__pycache__", ".pytest_cache", ".next", ".claude", ".gemini", ".agent",
                    ".superpowers", ".vscode", ".ipynb_checkpoints"}
+    denied_files = {"credentials.json", "credentials", "key.md", "id_rsa", "id_ed25519",
+                    "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "poetry.lock",
+                    "uv.lock", "pipfile.lock", "cargo.lock", "go.sum", "composer.lock",
+                    "gemfile.lock"}
+    denied_suffixes = (".env", ".pem", ".key", ".p12", ".pfx", ".bak", ".bak1",
+                       ".min.js", ".min.css", ".map", ".pyc", ".whl")
     allowed_hidden = {".gitignore", ".dockerignore"}
     for part in parts:
         low = part.lower()
         if low in denied_dirs or (part.startswith(".") and low not in allowed_hidden):
             return False
-        if (low.startswith(".env") or low.endswith((".env", ".pem", ".key", ".p12", ".pfx", ".bak", ".bak1"))
-                or low in {"credentials.json", "credentials", "key.md", "id_rsa", "id_ed25519"}
-                or "recovery-code" in low):
+        if (low.startswith(".env") or low.endswith(denied_suffixes)
+                or low in denied_files or "recovery-code" in low):
             return False
     return True
 

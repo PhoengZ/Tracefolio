@@ -8,7 +8,7 @@ from ..privacy import path_allowed
 from ..private_config import REPOSITORY
 from .base import ContextRequest, SourceRequest, canonical, coverage, evidence
 from .github_transport import GitHubTransport
-from .notebooks import normalize_text
+from .notebooks import filter_changed_cells, normalize_text
 
 
 class GitHubPublicProvider:
@@ -145,6 +145,9 @@ class GitHubPublicProvider:
                     commit_bytes = 0
                     ok = True
                     stop = False
+                    first_in_commit = True
+                    full_msg = message.strip()
+                    subject = full_msg.splitlines()[0] if full_msg else ""
                     for item in files:
                         path = item["filename"]
                         if not path_allowed(path, req.source.include_paths,
@@ -154,30 +157,40 @@ class GitHubPublicProvider:
                         try:
                             metadata = {}
                             previous_path = item.get("previous_filename", path)
+                            if previous_path != path:
+                                invalidated.append(previous_path)
                             if not path_allowed(previous_path, req.source.include_paths,
                                                 req.source.exclude_paths):
                                 raise TracefolioError("rename_source_out_of_scope", exit_code=3)
                             if path.endswith(".ipynb"):
-                                before = ""
+                                before, before_meta = "", {}
                                 if parents and item["status"] != "added":
-                                    before, _ = self._text(req, prefix, parents[0]["sha"],
-                                                           previous_path)
+                                    before, before_meta = self._text(req, prefix, parents[0]["sha"],
+                                                                     previous_path)
                                 after = ""
                                 if item["status"] != "removed":
                                     after, metadata = self._text(req, prefix, sha, path)
+                                metadata = filter_changed_cells(before_meta, metadata)
                                 patch = "".join(difflib.unified_diff(
                                     before.splitlines(True), after.splitlines(True),
-                                    fromfile="before", tofile="after"))
+                                    fromfile="before", tofile="after", n=1))
                             else:
                                 patch = item.get("patch")
                                 if patch is None:
-                                    raise TracefolioError("github_missing_patch", exit_code=3)
+                                    if item.get("status") == "renamed" and item.get("changes", 0) == 0:
+                                        patch = ""
+                                    else:
+                                        raise TracefolioError("github_missing_patch", exit_code=3)
                             commit_bytes += len(patch.encode())
                             if commit_bytes > req.limits.max_diff_bytes_per_commit:
                                 raise TracefolioError("diff_budget", exit_code=3)
                             label = "merge_context" if len(parents) > 1 else "commit"
+                            msg_text = full_msg if first_in_commit else subject
+                            first_in_commit = False
+                            status_desc = (f"{item['status']} {previous_path} -> {path}"
+                                           if previous_path != path else item["status"])
                             records.append(evidence(
-                                req, sha, path, f"{label}: {message}\nchange: {item['status']}\n{patch}",
+                                req, sha, path, f"{label}: {msg_text}\nchange: {status_desc}\n{patch}",
                                 origin="git_commit", attribution=attribution, **metadata))
                         except TracefolioError as error:
                             limitations.append(error.code)

@@ -255,4 +255,22 @@ def test_revisited_snapshot_content_returns_to_analysis_backlog(workspace):
     assert store.read_state("demo").pending_analysis == [original_id]
 
 
+def test_incremental_work_update_omits_prior_raw_evidence_and_provides_aliases(workspace):
+    cfg, source, _ = workspace
+    (source / "one.py").write_text("x = " + repr("A" * 3000))
+    collect_projects(cfg, ["demo"])
+    store = StateStore.open(cfg)
+    prior_ev = store.read_state("demo").evidence_ids[0]
+    seed_generation(store)
+    (source / "one.py").write_text("x = 2\n")
+    collect_projects(cfg, ["demo"])
+    cfg.registry.limits.max_packet_bytes = 2500
+    result = create_packet(store, "demo")
+    assert result.status == "created"
+    packet = store.read_packet(result.packet_id)
+    assert len(packet.evidence) == 1
+    assert packet.evidence[0].evidence_id != prior_ev
+    assert len(packet.prior_works) == 1
+    assert packet.evidence_aliases["e1"] == packet.evidence[0].evidence_id
+    assert packet.evidence_aliases["p1"] == prior_ev
 

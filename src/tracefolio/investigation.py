@@ -41,6 +41,15 @@ def _size(packet):
     return len(canonical(packet.model_dump(mode="json"))) + 1
 
 
+def _aliases(items, works) -> dict[str, str]:
+    mapping = {f"e{idx}": eid for idx, eid in enumerate(items, start=1)}
+    prior_refs = sorted({ref for w in works.values() for ref in work_evidence_refs(w)
+                         if ref not in items})
+    for idx, ref in enumerate(prior_refs, start=1):
+        mapping[f"p{idx}"] = ref
+    return mapping
+
+
 def create_packet(store: StateStore, project_id: str, *, work_id=None) -> PacketResult:
     project = next((p for p in store.config.registry.projects
                     if p.project_id == project_id and p.enabled), None)
@@ -62,18 +71,21 @@ def create_packet(store: StateStore, project_id: str, *, work_id=None) -> Packet
         selected, selected_works = {}, {}
         work_refs = {key: work_evidence_refs(work) for key, work in previous.items()}
 
-        def include_work(work_key, target_evidence, target_works):
+        def include_work(work_key, target_evidence, target_works, *, include_prior_evidence=False):
             work = previous[work_key]
             target_works[work_key] = work
-            for ref in work_refs[work_key]:
-                target_evidence[ref] = store.read_evidence(ref)
+            if include_prior_evidence:
+                for ref in work_refs[work_key]:
+                    target_evidence[ref] = store.read_evidence(ref)
 
         if work_id:
             if work_id not in previous:
                 raise TracefolioError("unknown_work")
-            include_work(work_id, selected, selected_works)
+            include_work(work_id, selected, selected_works,
+                         include_prior_evidence=not candidates)
         elif not candidates and ledger.invalidated_work_ids:
-            include_work(ledger.invalidated_work_ids[0], selected, selected_works)
+            include_work(ledger.invalidated_work_ids[0], selected, selected_works,
+                         include_prior_evidence=True)
 
         def build(items, works, pending):
             return _finish(InvestigationPacket(
@@ -83,7 +95,9 @@ def create_packet(store: StateStore, project_id: str, *, work_id=None) -> Packet
                 base_generation_id=ledger.current_generation_id,
                 collection_revision=ledger.collection_revision,
                 allowed_evidence_ids=list(items),
-                pending_evidence_ids=pending, evidence=list(items.values()),
+                pending_evidence_ids=pending,
+                evidence_aliases=_aliases(items, works),
+                evidence=list(items.values()),
                 prior_works=list(works.values()), configured_work_ids=configured,
                 work_routes=[PacketWorkRoute(
                     work_id=unit.work_id, source_id=source.source_id,
@@ -160,10 +174,12 @@ def extend_packet(store: StateStore, request: ContextRequest) -> PacketResult:
                 fresh.append(record)
         if not fresh:
             return PacketResult("noop", packet.packet_id, len(packet.evidence))
+        prior_map = {w.work_id: w for w in packet.prior_works}
         updated = packet.model_copy(update={
             "evidence": list(items.values()), "allowed_evidence_ids": list(items),
             "pending_evidence_ids": list(dict.fromkeys(packet.pending_evidence_ids +
                                                        [e.evidence_id for e in fresh])),
+            "evidence_aliases": _aliases(items, prior_map),
             "collection_revision": ledger.collection_revision + 1,
         })
         updated = _finish(updated)

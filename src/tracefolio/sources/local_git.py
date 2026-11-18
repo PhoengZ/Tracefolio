@@ -7,7 +7,7 @@ from ..contracts.evidence import CollectionResult, ContextResult, SourceCursor
 from ..errors import TracefolioError
 from ..privacy import path_allowed, safe_relative
 from .base import ContextRequest, SourceRequest, coverage, evidence
-from .notebooks import normalize_text
+from .notebooks import filter_changed_cells, normalize_text
 
 
 def git(request: SourceRequest, *args: str, optional=False) -> bytes | None:
@@ -113,29 +113,55 @@ class LocalGitProvider:
                 attribution = "unverified"
             delta_args = [parent, sha] if parent else ["--root", sha]
             raw_paths = git(req, "diff-tree", "--no-commit-id", "--name-status", "-r", "-z",
-                            "--no-renames", *delta_args).decode("utf-8", "replace").split("\0")
+                            "-M", *delta_args).decode("utf-8", "replace").split("\0")
             commit_ok, commit_bytes = True, 0
-            for index in range(0, len(raw_paths) - 1, 2):
-                status, path = raw_paths[index:index + 2]
+            first_in_commit = True
+            full_msg = message.strip()
+            subject = full_msg.splitlines()[0] if full_msg else ""
+            index = 0
+            while index < len(raw_paths) - 1:
+                status = raw_paths[index]
+                if not status:
+                    index += 1
+                    continue
+                if status.startswith(("R", "C")):
+                    old_path, path = raw_paths[index + 1], raw_paths[index + 2]
+                    index += 3
+                else:
+                    old_path = path = raw_paths[index + 1]
+                    index += 2
                 if not path_allowed(path, req.source.include_paths, req.source.exclude_paths):
                     continue
                 paths.append(path)
+                if old_path != path:
+                    paths.append(old_path)
                 try:
-                    before, _, old_size = self._blob(
-                        req, parent, path, max_bytes=req.limits.max_total_source_bytes - total)
-                    total += old_size
-                    after, metadata, new_size = self._blob(
-                        req, sha, path, max_bytes=req.limits.max_total_source_bytes - total)
-                    total += new_size
-                    diff = "".join(difflib.unified_diff(
-                        before.splitlines(True), after.splitlines(True),
-                        fromfile="before", tofile="after"))
+                    if old_path != path and not path_allowed(
+                            old_path, req.source.include_paths, req.source.exclude_paths):
+                        raise TracefolioError("rename_source_out_of_scope", exit_code=3)
+                    if status == "R100" and not path.endswith(".ipynb"):
+                        diff = ""
+                        metadata = {}
+                    else:
+                        before, before_meta, old_size = self._blob(
+                            req, parent, old_path, max_bytes=req.limits.max_total_source_bytes - total)
+                        total += old_size
+                        after, after_meta, new_size = self._blob(
+                            req, sha, path, max_bytes=req.limits.max_total_source_bytes - total)
+                        total += new_size
+                        metadata = filter_changed_cells(before_meta, after_meta)
+                        diff = "".join(difflib.unified_diff(
+                            before.splitlines(True), after.splitlines(True),
+                            fromfile="before", tofile="after", n=1))
                     commit_bytes += len(diff.encode())
                     if (commit_bytes > req.limits.max_diff_bytes_per_commit
                             or total > req.limits.max_total_source_bytes):
                         raise TracefolioError("diff_budget", exit_code=3)
                     label = "merge_context" if len(parents) > 1 else "commit"
-                    payload = f"{label}: {message.strip()}\nchange: {status}\n{diff}"
+                    msg_text = full_msg if first_in_commit else subject
+                    first_in_commit = False
+                    change_desc = f"{status} {old_path} -> {path}" if old_path != path else status
+                    payload = f"{label}: {msg_text}\nchange: {change_desc}\n{diff}"
                     records.append(evidence(req, sha, path, payload, origin="git_commit",
                                             attribution=attribution, **metadata))
                 except TracefolioError as error:
