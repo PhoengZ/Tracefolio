@@ -280,3 +280,41 @@ def test_git_rename_and_multi_file_commit_deduplicate_message_and_filter_noise(r
     assert "change: R100 alpha.py -> renamed_alpha.py" in renamed.payload
     assert "alpha = 1" not in renamed.payload
 
+
+def test_git_snapshot_mode_reads_net_head_and_updates_incrementally(repo):
+    commit(repo, "def old_retired():\n    return 0\n", "intermediate churn", "main.py")
+    commit(repo, "class ActiveService:\n    def run(self, x):\n        return x + 1\n",
+           "final net state", "main.py")
+    commit(repo, "big = " + repr("Z" * 400) + "\n", "add oversized file", "large.py")
+    snap_req = SourceRequest(
+        project_id="demo",
+        source=SourceRoute(source_id="code", kind="local_git", collection_mode="snapshot",
+                           root_env="TRACEFOLIO_TEST_ROOT", include_paths=["**/*.py"]),
+        locator=str(repo), limits=Limits(max_text_file_bytes=200),
+        policy=PrivacyPolicy((str(repo),)),
+        owner_emails=frozenset({"synthetic@example.invalid"}),
+    )
+    provider = LocalGitProvider()
+    first = provider.collect_source(snap_req, None)
+    assert first.coverage.state == "complete"
+    by_path = {e.source_relative_path: e for e in first.evidence}
+    assert set(by_path) == {"main.py", "large.py"}
+    assert "old_retired" not in by_path["main.py"].payload
+    assert "class ActiveService" in by_path["main.py"].payload
+    assert by_path["main.py"].origin == "snapshot"
+    assert by_path["main.py"].attribution == "self"
+    assert by_path["large.py"].completeness == "partial"
+    assert "[semantic_outline]" in by_path["large.py"].payload
+
+    # Unchanged second run is a noop
+    second = provider.collect_source(snap_req, first.cursor)
+    assert second.coverage.state == "complete"
+    assert second.evidence == []
+
+    # Incremental update reads only the changed file
+    commit(repo, "class ActiveService:\n    def run(self, x):\n        return x + 2\n",
+           "modify main only", "main.py")
+    third = provider.collect_source(snap_req, second.cursor)
+    assert third.coverage.state == "complete"
+    assert [e.source_relative_path for e in third.evidence] == ["main.py"]
+

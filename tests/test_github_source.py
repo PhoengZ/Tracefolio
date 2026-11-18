@@ -52,6 +52,19 @@ class FakeGitHub:
             text = b"checkpoint = 1\n"
             return ApiResponse({"type": "file", "size": len(text), "encoding": "base64",
                                 "content": base64.b64encode(text).decode()})
+        if "/git/trees/" in path:
+            return ApiResponse({
+                "sha": SHA,
+                "truncated": False,
+                "tree": [
+                    {"path": "main.py", "mode": "100644", "type": "blob", "sha": "blob-main-1", "size": 32},
+                    {"path": "ignored.txt", "mode": "100644", "type": "blob", "sha": "blob-ign", "size": 10},
+                ],
+            })
+        if path.endswith("/git/blobs/blob-main-1"):
+            text = b"def run_pipeline(items):\n    return len(items)\n"
+            return ApiResponse({"sha": "blob-main-1", "size": len(text), "encoding": "base64",
+                                "content": base64.b64encode(text).decode()})
         raise AssertionError("Unexpected fake API request: " + path)
 
 
@@ -173,5 +186,31 @@ def test_inaccessible_comparison_base_reconciles_from_pinned_history():
     result = GitHubPublicProvider(api).collect_source(req(), SourceCursor(head=OLDER))
     assert "history_reconciled" in result.warnings
     assert result.cursor.head == SHA
+
+
+def test_github_snapshot_mode_uses_tree_and_blobs_without_commit_patches():
+    api = FakeGitHub()
+    api.binary = True  # Even if commit patches were missing, snapshot mode never queries commit patches
+    snap_req = SourceRequest(
+        "demo",
+        SourceRoute(source_id="code", kind="github_public", collection_mode="snapshot",
+                    repository_env="TRACEFOLIO_DEMO_REPO", include_paths=["**/*.py"]),
+        "example/demo", Limits(), PrivacyPolicy(),
+    )
+    provider = GitHubPublicProvider(api)
+    first = provider.collect_source(snap_req, None)
+    assert first.coverage.state == "complete"
+    assert len(first.evidence) == 1
+    assert first.evidence[0].source_relative_path == "main.py"
+    assert first.evidence[0].origin == "snapshot"
+    assert "def run_pipeline" in first.evidence[0].payload
+    assert not any(p.endswith("/commits/" + SHA) for p, _ in api.calls)
+
+    # Second run at same HEAD makes no tree/blob requests
+    api.calls.clear()
+    second = provider.collect_source(snap_req, first.cursor)
+    assert second.coverage.state == "complete"
+    assert second.evidence == []
+    assert not any("/git/blobs/" in p for p, _ in api.calls)
 
 

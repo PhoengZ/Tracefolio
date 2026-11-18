@@ -157,6 +157,15 @@
           "title": "Kind",
           "type": "string"
         },
+        "collection_mode": {
+          "default": "commits",
+          "enum": [
+            "commits",
+            "snapshot"
+          ],
+          "title": "Collection Mode",
+          "type": "string"
+        },
         "root_env": {
           "anyOf": [
             {

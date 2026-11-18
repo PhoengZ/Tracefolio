@@ -4,6 +4,7 @@ from .collection import project_fingerprint, provider_for
 from .contracts.packets import InvestigationPacket, PacketWorkRoute
 from .errors import TracefolioError
 from .privacy import path_allowed, sanitize_text
+from .semantic import build_semantic_map
 from .sources.base import ContextRequest, canonical, digest
 from .state import StateStore, effective_works, work_evidence_refs
 
@@ -88,7 +89,8 @@ def create_packet(store: StateStore, project_id: str, *, work_id=None) -> Packet
                          include_prior_evidence=True)
 
         def build(items, works, pending):
-            return _finish(InvestigationPacket(
+            sem_map = build_semantic_map(project, list(items.values()), store.config.policy)
+            pkt = _finish(InvestigationPacket(
                 packet_id="pending", packet_digest="pending", project_id=project_id,
                 project_title=sanitize_text(project.title, store.config.policy).text,
                 project_context=sanitize_text(project.context, store.config.policy).text,
@@ -97,6 +99,7 @@ def create_packet(store: StateStore, project_id: str, *, work_id=None) -> Packet
                 allowed_evidence_ids=list(items),
                 pending_evidence_ids=pending,
                 evidence_aliases=_aliases(items, works),
+                semantic_map=sem_map,
                 evidence=list(items.values()),
                 prior_works=list(works.values()), configured_work_ids=configured,
                 work_routes=[PacketWorkRoute(
@@ -107,6 +110,9 @@ def create_packet(store: StateStore, project_id: str, *, work_id=None) -> Packet
                     for source in project.sources for unit in source.work_units],
                 known_work_ids=sorted(previous), coverage=ledger.coverage(),
             ))
+            if sem_map and _size(pkt) > store.config.registry.limits.max_packet_bytes:
+                pkt = _finish(pkt.model_copy(update={"semantic_map": []}))
+            return pkt
 
         consumed = []
         for ref in candidates:
@@ -141,7 +147,7 @@ def create_packet(store: StateStore, project_id: str, *, work_id=None) -> Packet
         return PacketResult("created", packet.packet_id, len(packet.evidence))
 
 
-def extend_packet(store: StateStore, request: ContextRequest) -> PacketResult:
+def extend_packet(store: StateStore, request: ContextRequest, *, providers=None) -> PacketResult:
     packet = store.read_packet(request.packet_id)
     validate_packet(packet)
     with store.lock(packet.project_id):
@@ -164,7 +170,8 @@ def extend_packet(store: StateStore, request: ContextRequest) -> PacketResult:
             if expected is None:
                 raise TracefolioError("context_revision")
             revision = "sha256:" + expected
-        result = provider_for(req.source.kind).read_context(
+        provider = (providers or {}).get(req.source.kind) or provider_for(req.source.kind)
+        result = provider.read_context(
             ContextRequest(req, revision, request.path, packet.packet_id))
         items = {e.evidence_id: e for e in packet.evidence}
         fresh = []
@@ -175,11 +182,15 @@ def extend_packet(store: StateStore, request: ContextRequest) -> PacketResult:
         if not fresh:
             return PacketResult("noop", packet.packet_id, len(packet.evidence))
         prior_map = {w.work_id: w for w in packet.prior_works}
+        project = next(p for p in store.config.registry.projects
+                       if p.project_id == packet.project_id)
         updated = packet.model_copy(update={
             "evidence": list(items.values()), "allowed_evidence_ids": list(items),
             "pending_evidence_ids": list(dict.fromkeys(packet.pending_evidence_ids +
                                                        [e.evidence_id for e in fresh])),
             "evidence_aliases": _aliases(items, prior_map),
+            "semantic_map": build_semantic_map(project, list(items.values()),
+                                               store.config.policy),
             "collection_revision": ledger.collection_revision + 1,
         })
         updated = _finish(updated)

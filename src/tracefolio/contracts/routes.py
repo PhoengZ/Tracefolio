@@ -32,6 +32,7 @@ class WorkUnit(StrictModel):
 class SourceRoute(StrictModel):
     source_id: Id
     kind: Literal["local_git", "local_directory", "github_public"]
+    collection_mode: Literal["commits", "snapshot"] = "commits"
     root_env: EnvRef | None = None
     repository_env: EnvRef | None = None
     ref: str | None = None

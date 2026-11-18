@@ -45,7 +45,7 @@ def _meaningful(state):
     return data
 
 
-def collect_projects(config, project_ids, *, providers=None):
+def collect_projects(config, project_ids, *, providers=None, mode=None):
     lookup = {p.project_id: p for p in config.registry.projects}
     if any(p not in lookup for p in project_ids):
         raise TracefolioError("unknown_project")
@@ -65,6 +65,8 @@ def collect_projects(config, project_ids, *, providers=None):
                 changed_paths, changed_sources, count = set(), set(), 0
                 for source in project.sources:
                     req = store.source_request(project_id, source.source_id)
+                    if mode in {"commits", "snapshot"}:
+                        req.source = req.source.model_copy(update={"collection_mode": mode})
                     fingerprint = source_fingerprint(config, project, source)
                     old = ledger.sources.get(source.source_id)
                     previous = old.cursor if old and old.fingerprint == fingerprint else None
@@ -73,6 +75,13 @@ def collect_projects(config, project_ids, *, providers=None):
                     try:
                         provider = (providers or {}).get(source.kind) or provider_for(source.kind)
                         result = provider.collect_source(req, previous)
+                        if (req.source.collection_mode == "snapshot"
+                                and (old is None or not old.cursor.inventory)):
+                            ledger.pending_analysis = [
+                                eid for eid in ledger.pending_analysis
+                                if not (store.read_evidence(eid).source_id == source.source_id
+                                        and store.read_evidence(eid).origin == "git_commit")
+                            ]
                         result.cursor.fingerprint = fingerprint
                         ledger.sources[source.source_id] = SourceState(
                             cursor=result.cursor, coverage=result.coverage, fingerprint=fingerprint)

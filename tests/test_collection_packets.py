@@ -274,3 +274,37 @@ def test_incremental_work_update_omits_prior_raw_evidence_and_provides_aliases(w
     assert packet.evidence_aliases["e1"] == packet.evidence[0].evidence_id
     assert packet.evidence_aliases["p1"] == prior_ev
 
+
+def test_packet_embeds_semantic_map_and_cli_supports_snapshot_mode_override(workspace):
+    from tracefolio.contracts.routes import WorkUnit
+    from tracefolio.semantic import extract_semantic_symbols
+    cfg, source, _ = workspace
+    cfg.registry.projects[0].sources[0].work_units = [
+        WorkUnit(work_id="checkpoint-handling", context="Checkpoints", include_paths=["*.py"])
+    ]
+    (source / "one.py").write_text(
+        "class Engine:\n    def execute(self, payload):\n        return payload\n\n"
+        "async def serve_http(port):\n    return port\n"
+    )
+    collect_projects(cfg, ["demo"], mode="snapshot")
+    store = StateStore.open(cfg)
+    result = create_packet(store, "demo")
+    assert result.status == "created"
+    packet = store.read_packet(result.packet_id)
+    assert len(packet.semantic_map) == 1
+    entry = packet.semantic_map[0]
+    assert entry.path == "one.py"
+    assert entry.kind == "python"
+    assert entry.work_ids == ["checkpoint-handling"]
+    assert "class Engine (execute)" in entry.symbols
+    assert "async def serve_http(port)" in entry.symbols
+
+    go_kind, go_syms = extract_semantic_symbols(
+        "service/handler.go",
+        "package handler\ntype OrderStore interface {\n}\nfunc (h *Handler) CreateOrder(ctx Context) {}\n",
+    )
+    assert go_kind == "go"
+    assert "package handler" in go_syms
+    assert "type OrderStore interface" in go_syms
+    assert "func CreateOrder" in go_syms
+

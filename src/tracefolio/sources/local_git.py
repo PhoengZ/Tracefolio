@@ -6,6 +6,7 @@ from pathlib import Path
 from ..contracts.evidence import CollectionResult, ContextResult, SourceCursor
 from ..errors import TracefolioError
 from ..privacy import path_allowed, safe_relative
+from ..semantic import semantic_outline_payload
 from .base import ContextRequest, SourceRequest, coverage, evidence
 from .notebooks import filter_changed_cells, normalize_text
 
@@ -74,7 +75,138 @@ class LocalGitProvider:
             coverage=coverage(req, request.revision, True),
         )
 
+    def _path_attribution(self, req: SourceRequest, revision: str, path: str) -> str:
+        if not req.owner_emails:
+            return "unverified"
+        raw = git(req, "log", "-n", "25", "--no-merges", "--format=%ae", revision, "--", path,
+                  optional=True)
+        if not raw:
+            return "unverified"
+        emails = {line.strip().casefold() for line in raw.decode("utf-8", "replace").splitlines()
+                  if line.strip()}
+        if not emails:
+            return "unverified"
+        if emails <= req.owner_emails:
+            return "self"
+        if not (emails & req.owner_emails):
+            return "other"
+        return "unverified"
+
+    def _snapshot_blob(self, req: SourceRequest, revision: str, path: str, max_bytes: int):
+        safe_relative(path)
+        spec = f"{revision}:{path}"
+        size_raw = git(req, "cat-file", "-s", spec, optional=True)
+        if size_raw is None:
+            raise TracefolioError("source_missing", exit_code=3)
+        size = int(size_raw.strip())
+        if size > max_bytes:
+            raise TracefolioError("source_byte_budget", exit_code=3)
+        limit = (req.limits.max_notebook_bytes if path.endswith(".ipynb")
+                 else req.limits.max_text_file_bytes)
+        raw = git(req, "cat-file", "blob", spec)
+        if size <= limit:
+            text, metadata = normalize_text(raw, path, req.limits)
+            return text, metadata, size, "complete"
+        if path.endswith(".ipynb"):
+            text, metadata = normalize_text(raw, path, req.limits)
+        else:
+            if b"\x00" in raw:
+                raise TracefolioError("binary_not_supported", exit_code=3)
+            try:
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                raise TracefolioError("invalid_utf8", exit_code=3) from None
+            metadata = {}
+        outlined = semantic_outline_payload(path, text, limit)
+        return outlined, metadata, size, "partial"
+
+    def _collect_snapshot(self, req: SourceRequest,
+                          previous: SourceCursor | None) -> CollectionResult:
+        self._require_root(req)
+        previous = previous or SourceCursor()
+        if not previous.inventory and not previous.baseline:
+            previous = SourceCursor(fingerprint=previous.fingerprint)
+        current = git(req, "rev-parse", "--verify", "--end-of-options",
+                      f"{req.source.ref or 'HEAD'}^{{commit}}").decode().strip()
+        if previous.head == current and not previous.pending and not previous.target:
+            return CollectionResult(cursor=previous, coverage=coverage(req, current, True))
+        target = previous.target if (previous.target and previous.pending) else current
+        raw_tree = git(req, "ls-tree", "-r", "-z", target).decode("utf-8", "replace").split("\0")
+        tree_blobs: dict[str, str] = {}
+        limitations: list[str] = []
+        for entry in raw_tree:
+            if not entry or "\t" not in entry:
+                continue
+            header, path = entry.split("\t", 1)
+            if not path_allowed(path, req.source.include_paths, req.source.exclude_paths):
+                continue
+            parts = header.split()
+            if len(parts) < 3:
+                continue
+            mode, _, blob_sha = parts[0], parts[1], parts[2]
+            if mode == "120000":
+                limitations.append("symlink_not_followed")
+                continue
+            tree_blobs[path] = blob_sha
+
+        baseline = dict(previous.baseline if (previous.target == target and previous.pending)
+                        else previous.inventory)
+        if previous.target == target and previous.pending:
+            names = [p for p in previous.pending if p in tree_blobs]
+            inventory = dict(previous.inventory)
+        else:
+            names = [p for p, sha in sorted(tree_blobs.items()) if baseline.get(p) != sha]
+            inventory = {p: sha for p, sha in tree_blobs.items() if baseline.get(p) == sha}
+
+        selected = names[:req.limits.max_files_per_source]
+        records, retry, invalidated = [], [], []
+        total = 0
+        for path in selected:
+            try:
+                text, metadata, size, comp = self._snapshot_blob(
+                    req, target, path, req.limits.max_total_source_bytes - total)
+                total += size
+                attr = self._path_attribution(req, target, path)
+                records.append(evidence(req, target, path, text, origin="snapshot",
+                                        attribution=attr, completeness=comp, **metadata))
+                inventory[path] = tree_blobs[path]
+                invalidated.append(path)
+            except TracefolioError as error:
+                retry.append(path)
+                limitations.append(error.code)
+                if error.code == "source_byte_budget":
+                    retry.extend(selected[selected.index(path) + 1:])
+                    break
+
+        pending = retry + names[len(selected):]
+        if not pending:
+            for deleted_path in sorted(baseline.keys() - tree_blobs.keys()):
+                records.append(evidence(req, "deleted-" + baseline[deleted_path], deleted_path,
+                                        "File deleted from source snapshot.", origin="snapshot"))
+                invalidated.append(deleted_path)
+        else:
+            limitations.append("pending_files")
+        if target != current:
+            limitations.append("head_changed")
+        complete = not pending and not limitations
+        cursor = SourceCursor(
+            fingerprint=previous.fingerprint,
+            head=previous.head if pending else target,
+            target=target if pending else None,
+            pending=pending,
+            inventory=inventory,
+            baseline=baseline if pending else {},
+        )
+        return CollectionResult(
+            evidence=records, cursor=cursor,
+            coverage=coverage(req, target, complete, limitations),
+            invalidated_paths=sorted(set(invalidated)),
+            changed=bool(records),
+        )
+
     def collect_source(self, req: SourceRequest, previous: SourceCursor | None) -> CollectionResult:
+        if req.source.collection_mode == "snapshot":
+            return self._collect_snapshot(req, previous)
         self._require_root(req)
         previous = previous or SourceCursor()
         current = git(req, "rev-parse", "--verify", "--end-of-options",

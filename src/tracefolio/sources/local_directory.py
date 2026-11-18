@@ -6,6 +6,7 @@ from ..contracts.common import utc_now
 from ..contracts.evidence import CollectionResult, ContextResult, SourceCursor
 from ..errors import TracefolioError
 from ..privacy import mandatory_allowed, path_allowed, resolve_allowed_path, sanitize_text
+from ..semantic import semantic_outline_payload
 from .base import ContextRequest, SourceRequest, coverage, digest, evidence
 from .notebooks import normalize_text
 
@@ -18,13 +19,23 @@ class LocalDirectoryProvider:
             before = target.stat()
             if remaining is not None and before.st_size > remaining:
                 raise TracefolioError("source_byte_budget", exit_code=3)
-            if before.st_size > limit:
+            allow_outline = req.source.collection_mode == "snapshot" and not path.endswith(".ipynb")
+            if before.st_size > limit and not allow_outline:
                 raise TracefolioError("content_budget", exit_code=3)
+            read_cap = before.st_size if allow_outline else limit
             with target.open("rb") as handle:
-                raw = handle.read(limit + 1)
+                raw = handle.read(read_cap + 1)
             after = target.stat()
             if (before.st_mtime_ns, before.st_size) != (after.st_mtime_ns, after.st_size):
                 raise TracefolioError("unstable_observation", exit_code=3)
+            if before.st_size > limit and allow_outline:
+                if b"\x00" in raw:
+                    raise TracefolioError("binary_not_supported", exit_code=3)
+                try:
+                    full_text = raw.decode("utf-8")
+                except UnicodeDecodeError:
+                    raise TracefolioError("invalid_utf8", exit_code=3) from None
+                return semantic_outline_payload(path, full_text, limit), {}, len(raw)
             text, metadata = normalize_text(raw, path, req.limits)
             return text, metadata, len(raw)
         except FileNotFoundError:
