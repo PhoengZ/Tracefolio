@@ -13,6 +13,15 @@ python -m pip install -e ".[dev]"
 tracefolio --help
 ```
 
+If this checkout has a privately prepared, Git-ignored `bindings.local.json`, load it before running the CLI in PowerShell:
+
+```powershell
+. ./load-config.ps1
+./.venv/Scripts/python.exe -m tracefolio.cli config validate
+```
+
+The loader sets process-local environment bindings; it does not collect sources or run LLM analysis. Reload it in each new shell/tool process. Keep actual registries and state outside the checkout, as described below.
+
 Copy [the synthetic registry](examples/routes.example.json) to a private directory **outside the checkout and source folders**. Edit the copy. Route files contain environment-variable names, never literal paths or repository URLs. Bind those variables privately.
 
 PowerShell example (replace every placeholder):
@@ -39,18 +48,19 @@ Select exactly one of:
 - `TRACEFOLIO_CONFIG`: one absolute private registry filename.
 - `TRACEFOLIO_CONFIG_FILES`: a JSON array of absolute private registry filenames.
 
-For multiple registries, unset `TRACEFOLIO_CONFIG` first. Shared owner/privacy/budget settings must match; duplicate projects are rejected. Selecting only the public registry needs no local bindings. Disabled projects do not resolve bindings or read sources. Public GitHub uses anonymous HTTPS and never falls back to authentication or a local clone.
+For multiple registries, unset `TRACEFOLIO_CONFIG` first. Shared owner/privacy/budget settings must match; duplicate projects are rejected. Selecting only the public registry needs no local bindings. Disabled projects do not resolve bindings or read sources. Public GitHub uses anonymous HTTPS by default and never automatically switches to authentication or a local clone. After a rate limit, a user-authorized connected GitHub plugin can feed public GET responses through the opt-in `--github-plugin` bridge for collection and scoped context. It needs bidirectional pipes, adds no API token or Python MCP dependency, and retains public-only visibility checks. See [the plugin workflow and machine protocol](docs/github-plugin-workflow.md).
 
 ## Use
 
 ```text
 tracefolio collect --all
+tracefolio collect --all --mode snapshot
 tracefolio packet create --project <project-id>
 tracefolio apply --proposal <absolute-private-proposal-file>
 tracefolio summarize --all --format json
 ```
 
-Collection alone does **not** create a semantic summary. An existing agent/harness reads the packet and writes the proposal. See [the exact harness workflow](docs/harness-workflow.md), including continuation, context reads, and proposal rules. Output JSON is English; source evidence retains its original language. Models can still misunderstand code: inspect evidence and review narratives before reusing them.
+Collection supports commit-history diffs (`--mode commits`, default) and whole-project HEAD snapshots (`--mode snapshot` or `"collection_mode": "snapshot"` in a route), and embeds a deterministic `semantic_map` of project files, symbols, and work mappings into each investigation packet. Collection alone does **not** create a semantic summary. An existing agent/harness reads the packet and writes the proposal. See [the exact harness workflow](docs/harness-workflow.md), including continuation, context reads, and proposal rules. Output JSON is English; source evidence retains its original language. Models can still misunderstand code: inspect evidence and review narratives before reusing them.
 
 To add a project, add a route and its private environment binding, validate, then collect and investigate it. No application-code edit is needed for an existing source kind. Use stable `project_id`/`work_id` values; changing an ID creates a different identity. Work-unit descriptions guide investigation, not assertions of accomplishment.
 
