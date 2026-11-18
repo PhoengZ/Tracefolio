@@ -70,7 +70,10 @@ def mandatory_allowed(path: str) -> bool:
                     "uv.lock", "pipfile.lock", "cargo.lock", "go.sum", "composer.lock",
                     "gemfile.lock"}
     denied_suffixes = (".env", ".pem", ".key", ".p12", ".pfx", ".bak", ".bak1",
-                       ".min.js", ".min.css", ".map", ".pyc", ".whl")
+                       ".min.js", ".min.css", ".map", ".pyc", ".whl",
+                       ".otf", ".ttf", ".woff", ".woff2", ".eot", ".ico",
+                       ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp",
+                       ".pdf", ".zip", ".tar", ".gz", ".exe", ".dll", ".so", ".dylib")
     allowed_hidden = {".gitignore", ".dockerignore"}
     for part in parts:
         low = part.lower()

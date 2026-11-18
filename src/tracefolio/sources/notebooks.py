@@ -39,6 +39,11 @@ def normalize_notebook(raw_json: str) -> NotebookSource:
 def normalize_text(raw: bytes, path: str, limits) -> tuple[str, dict]:
     is_notebook = path.lower().endswith(".ipynb")
     maximum = limits.max_notebook_bytes if is_notebook else limits.max_text_file_bytes
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")) and not raw.startswith((b"\xff\xfe\x00\x00", b"\x00\x00\xfe\xff")):
+        try:
+            raw = raw.decode("utf-16").encode("utf-8")
+        except UnicodeDecodeError:
+            pass
     if len(raw) > maximum or b"\0" in raw:
         raise TracefolioError("content_budget_or_binary", exit_code=3)
     try:
