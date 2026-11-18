@@ -1,0 +1,15 @@
+# Authorship audit
+
+Repository ownership does not establish who authored its changes. For an ownership question, inspect only commit metadata currently cited by the work records; do not reread every historical diff.
+
+1. Use the connected GitHub plugin's authenticated-user tool to establish the account's numeric ID and login. Compare commit `author.id` with that numeric ID. The repository owner, committer, pusher and display name are different signals and do not substitute for the author association.
+2. Recheck public visibility before reading metadata from a configured public source. Pin history queries to the collected revision and resolve the specific referenced commits. Do not use this audit to read private GitHub repositories or unconfigured clones.
+3. For configured local Git sources, author emails observed on commits linked to the authenticated GitHub identity can provide an email-matching identity set. Read metadata through the existing read-only Git wrapper. An unmatched email may be another owner address; it is not automatically proof of a different person. Keep raw names and emails private.
+4. Treat merge commits as integration context. Recognized AI-assistant trailers, including Codex, Claude and Gemini, represent tools rather than human collaborators. Exclude AI-only trailers when classifying an owner-matched change as personal versus shared; retain human or unresolved co-authors for review. Do not infer that an arbitrary human called Claude is an AI tool: use clear assistant labels and service/bot identities. Snapshots and a file read at a pinned HEAD do not establish who originally authored the file.
+5. Audit individual claim references. A work can contain evidence from several authors, documentation and unrelated context. Attribute only supported changes, without promoting the whole project to sole personal work. Authorship association is not proof of originality, execution, impact or measured outcomes.
+
+Keep the audit in private state, for example `exports/authorship-audit.json`, and identify its scope as the commits currently supporting the summary. Do not confuse this subset with every commit or line in a repository.
+
+For future resume writing, omit assistant names, AI co-author labels and routine AI-use disclosure by default. Focus on the owner's evidenced responsibilities and outcomes. AI-only trailers do not require collaborative wording, while actual human collaboration and unmatched primary authors still need accurate attribution. Keep original metadata privately for traceability; this presentation rule does not change the source history or create evidence of high-level design by itself.
+
+The current collector/validator uses configured author emails and immutable evidence attribution. A separate account-ID audit does not silently mutate historical evidence or upgrade contribution fields. Preserve `unreviewed` status and existing validation until attribution is incorporated through a supported collection/publication flow. Consult the audit when deciding which personal claims are supported or still require review.

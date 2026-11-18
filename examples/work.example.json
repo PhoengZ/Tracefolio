@@ -1,0 +1,65 @@
+{
+  "schema_version": "1.0.0",
+  "project_id": "demo-ingestion",
+  "work_id": "incremental-sync",
+  "record_revision": 1,
+  "language": "en",
+  "title": "Checkpoint-Based Incremental Synchronization",
+  "problem": "Synthetic example: interrupted ingestion needs an explicit recovery position.",
+  "actions": [
+    "Implemented timestamp checkpoint handling.",
+    "Added retry handling for transient failures."
+  ],
+  "skills": [
+    {
+      "name": "Incremental data ingestion",
+      "evidence_refs": [
+        "ev-1111111111111111111111111111111111111111111111111111111111111111"
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "checkpoint-handling",
+      "statement": "The synthetic change adds timestamp checkpoint handling.",
+      "status": "observed",
+      "evidence_refs": [
+        "ev-1111111111111111111111111111111111111111111111111111111111111111"
+      ],
+      "metric": null
+    },
+    {
+      "claim_id": "failure-recovery-intent",
+      "statement": "Checkpointing is intended to support recovery after an interruption.",
+      "status": "inferred",
+      "evidence_refs": [
+        "ev-1111111111111111111111111111111111111111111111111111111111111111"
+      ],
+      "metric": null
+    }
+  ],
+  "contribution": "self_authored",
+  "implementation_status": "implemented",
+  "analysis_status": "ready",
+  "review_status": "unreviewed",
+  "unknowns": [
+    "Runtime performance improvement has not been measured.",
+    "Production usage has not been established."
+  ],
+  "provenance": {
+    "source_ids": [
+      "pipeline-code"
+    ],
+    "evidence_refs": [
+      "ev-1111111111111111111111111111111111111111111111111111111111111111"
+    ],
+    "collection_ids": [
+      "collection-synthetic-001"
+    ],
+    "packet_ids": [
+      "packet-synthetic-001"
+    ]
+  },
+  "generated_at": "2026-11-17T00:00:00Z"
+}
+

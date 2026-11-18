@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0.0",
+  "project_id": "demo-ingestion",
+  "record_revision": 1,
+  "language": "en",
+  "title": "Incremental Ingestion Pipeline",
+  "summary": "Synthetic example: an ingestion pipeline with checkpoint-based processing and retry handling.",
+  "review_status": "unreviewed",
+  "source_ids": [
+    "pipeline-code"
+  ],
+  "work_ids": [
+    "incremental-sync"
+  ],
+  "evidence_ids": [
+    "ev-1111111111111111111111111111111111111111111111111111111111111111"
+  ],
+  "coverage": {
+    "state": "complete",
+    "pending_evidence_count": 0,
+    "sources": [
+      {
+        "source_id": "pipeline-code",
+        "revision": "2222222222222222222222222222222222222222",
+        "collection_state": "complete",
+        "analysis_state": "complete",
+        "limitations": []
+      }
+    ]
+  },
+  "unknowns": [
+    "Business impact has not been measured.",
+    "Deployment status is unknown."
+  ],
+  "generated_at": "2026-11-17T00:00:00Z"
+}
+

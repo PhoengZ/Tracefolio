@@ -1,0 +1,310 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Limits": {
+      "additionalProperties": false,
+      "properties": {
+        "max_commits_per_run": {
+          "default": 200,
+          "maximum": 10000,
+          "minimum": 1,
+          "title": "Max Commits Per Run",
+          "type": "integer"
+        },
+        "max_diff_bytes_per_commit": {
+          "default": 524288,
+          "maximum": 16777216,
+          "minimum": 1,
+          "title": "Max Diff Bytes Per Commit",
+          "type": "integer"
+        },
+        "max_text_file_bytes": {
+          "default": 131072,
+          "maximum": 16777216,
+          "minimum": 1,
+          "title": "Max Text File Bytes",
+          "type": "integer"
+        },
+        "max_notebook_bytes": {
+          "default": 8388608,
+          "maximum": 33554432,
+          "minimum": 1,
+          "title": "Max Notebook Bytes",
+          "type": "integer"
+        },
+        "max_packet_bytes": {
+          "default": 2097152,
+          "maximum": 33554432,
+          "minimum": 512,
+          "title": "Max Packet Bytes",
+          "type": "integer"
+        },
+        "max_files_per_source": {
+          "default": 2000,
+          "maximum": 100000,
+          "minimum": 1,
+          "title": "Max Files Per Source",
+          "type": "integer"
+        },
+        "max_total_source_bytes": {
+          "default": 16777216,
+          "maximum": 134217728,
+          "minimum": 1,
+          "title": "Max Total Source Bytes",
+          "type": "integer"
+        }
+      },
+      "title": "Limits",
+      "type": "object"
+    },
+    "Owner": {
+      "additionalProperties": false,
+      "properties": {
+        "author_emails_env": {
+          "anyOf": [
+            {
+              "pattern": "^TRACEFOLIO_[A-Z0-9_]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Author Emails Env"
+        }
+      },
+      "title": "Owner",
+      "type": "object"
+    },
+    "Privacy": {
+      "additionalProperties": false,
+      "properties": {
+        "redact_values_env": {
+          "anyOf": [
+            {
+              "pattern": "^TRACEFOLIO_[A-Z0-9_]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Redact Values Env"
+        }
+      },
+      "title": "Privacy",
+      "type": "object"
+    },
+    "ProjectRoute": {
+      "additionalProperties": false,
+      "properties": {
+        "project_id": {
+          "maxLength": 100,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "title": "Project Id",
+          "type": "string"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "context": {
+          "minLength": 1,
+          "title": "Context",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/SourceRoute"
+          },
+          "minItems": 1,
+          "title": "Sources",
+          "type": "array"
+        }
+      },
+      "required": [
+        "project_id",
+        "title",
+        "context",
+        "sources"
+      ],
+      "title": "ProjectRoute",
+      "type": "object"
+    },
+    "SourceRoute": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "maxLength": 100,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "local_git",
+            "local_directory",
+            "github_public"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "collection_mode": {
+          "default": "commits",
+          "enum": [
+            "commits",
+            "snapshot"
+          ],
+          "title": "Collection Mode",
+          "type": "string"
+        },
+        "root_env": {
+          "anyOf": [
+            {
+              "pattern": "^TRACEFOLIO_[A-Z0-9_]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Root Env"
+        },
+        "repository_env": {
+          "anyOf": [
+            {
+              "pattern": "^TRACEFOLIO_[A-Z0-9_]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repository Env"
+        },
+        "ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ref"
+        },
+        "include_paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Include Paths",
+          "type": "array"
+        },
+        "exclude_paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Exclude Paths",
+          "type": "array"
+        },
+        "work_units": {
+          "items": {
+            "$ref": "#/$defs/WorkUnit"
+          },
+          "title": "Work Units",
+          "type": "array"
+        }
+      },
+      "required": [
+        "source_id",
+        "kind"
+      ],
+      "title": "SourceRoute",
+      "type": "object"
+    },
+    "WorkUnit": {
+      "additionalProperties": false,
+      "properties": {
+        "work_id": {
+          "maxLength": 100,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "title": "Work Id",
+          "type": "string"
+        },
+        "context": {
+          "minLength": 1,
+          "title": "Context",
+          "type": "string"
+        },
+        "include_paths": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Include Paths",
+          "type": "array"
+        }
+      },
+      "required": [
+        "work_id",
+        "context",
+        "include_paths"
+      ],
+      "title": "WorkUnit",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "language": {
+      "const": "en",
+      "default": "en",
+      "title": "Language",
+      "type": "string"
+    },
+    "state_dir_env": {
+      "default": "TRACEFOLIO_STATE_DIR",
+      "pattern": "^TRACEFOLIO_[A-Z0-9_]+$",
+      "title": "State Dir Env",
+      "type": "string"
+    },
+    "owner": {
+      "$ref": "#/$defs/Owner"
+    },
+    "privacy": {
+      "$ref": "#/$defs/Privacy"
+    },
+    "limits": {
+      "$ref": "#/$defs/Limits"
+    },
+    "projects": {
+      "items": {
+        "$ref": "#/$defs/ProjectRoute"
+      },
+      "title": "Projects",
+      "type": "array"
+    }
+  },
+  "required": [
+    "projects"
+  ],
+  "title": "RouteRegistry",
+  "type": "object"
+}

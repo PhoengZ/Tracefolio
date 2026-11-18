@@ -1,0 +1,397 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Claim": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "maxLength": 100,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "statement": {
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "observed",
+            "inferred",
+            "user_asserted",
+            "needs_review"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "evidence_refs": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "metric": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Metric"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "claim_id",
+        "statement",
+        "status",
+        "evidence_refs"
+      ],
+      "title": "Claim",
+      "type": "object"
+    },
+    "ExcludedEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_id": {
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "reason": {
+          "enum": [
+            "irrelevant_to_work",
+            "duplicate_context",
+            "unavailable_content"
+          ],
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "reason"
+      ],
+      "title": "ExcludedEvidence",
+      "type": "object"
+    },
+    "Metric": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "pattern": "^-?\\d+(?:\\.\\d+)?$",
+          "title": "Value",
+          "type": "string"
+        },
+        "unit": {
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "scope": {
+          "minLength": 1,
+          "title": "Scope",
+          "type": "string"
+        },
+        "period_start": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Period Start"
+        },
+        "period_end": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Period End"
+        },
+        "evidence_refs": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Evidence Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "scope",
+        "evidence_refs"
+      ],
+      "title": "Metric",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "source_ids": {
+          "items": {
+            "maxLength": 100,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        },
+        "evidence_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "collection_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Collection Ids",
+          "type": "array"
+        },
+        "packet_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Packet Ids",
+          "type": "array"
+        }
+      },
+      "title": "Provenance",
+      "type": "object"
+    },
+    "Skill": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "evidence_refs": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Evidence Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "evidence_refs"
+      ],
+      "title": "Skill",
+      "type": "object"
+    },
+    "WorkContent": {
+      "additionalProperties": false,
+      "properties": {
+        "work_id": {
+          "maxLength": 100,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "title": "Work Id",
+          "type": "string"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "problem": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Problem"
+        },
+        "actions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Actions",
+          "type": "array"
+        },
+        "skills": {
+          "items": {
+            "$ref": "#/$defs/Skill"
+          },
+          "title": "Skills",
+          "type": "array"
+        },
+        "claims": {
+          "items": {
+            "$ref": "#/$defs/Claim"
+          },
+          "title": "Claims",
+          "type": "array"
+        },
+        "contribution": {
+          "default": "unverified",
+          "enum": [
+            "self_authored",
+            "collaborative",
+            "unverified"
+          ],
+          "title": "Contribution",
+          "type": "string"
+        },
+        "implementation_status": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "prototype",
+            "implemented",
+            "deployed"
+          ],
+          "title": "Implementation Status",
+          "type": "string"
+        },
+        "analysis_status": {
+          "default": "partial",
+          "enum": [
+            "ready",
+            "partial",
+            "pending"
+          ],
+          "title": "Analysis Status",
+          "type": "string"
+        },
+        "review_status": {
+          "default": "unreviewed",
+          "enum": [
+            "unreviewed",
+            "user_reviewed"
+          ],
+          "title": "Review Status",
+          "type": "string"
+        },
+        "unknowns": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Unknowns",
+          "type": "array"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "work_id",
+        "title"
+      ],
+      "title": "WorkContent",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "language": {
+      "const": "en",
+      "default": "en",
+      "title": "Language",
+      "type": "string"
+    },
+    "packet_id": {
+      "maxLength": 100,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "title": "Packet Id",
+      "type": "string"
+    },
+    "packet_digest": {
+      "title": "Packet Digest",
+      "type": "string"
+    },
+    "project_id": {
+      "maxLength": 100,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "base_generation_id": {
+      "anyOf": [
+        {
+          "maxLength": 100,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Base Generation Id"
+    },
+    "collection_revision": {
+      "minimum": 0,
+      "title": "Collection Revision",
+      "type": "integer"
+    },
+    "project_summary": {
+      "minLength": 1,
+      "title": "Project Summary",
+      "type": "string"
+    },
+    "work_updates": {
+      "items": {
+        "$ref": "#/$defs/WorkContent"
+      },
+      "title": "Work Updates",
+      "type": "array"
+    },
+    "analyzed_evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Analyzed Evidence Ids",
+      "type": "array"
+    },
+    "excluded_evidence": {
+      "items": {
+        "$ref": "#/$defs/ExcludedEvidence"
+      },
+      "title": "Excluded Evidence",
+      "type": "array"
+    }
+  },
+  "required": [
+    "packet_id",
+    "packet_digest",
+    "project_id",
+    "collection_revision",
+    "project_summary"
+  ],
+  "title": "AnalysisProposal",
+  "type": "object"
+}
