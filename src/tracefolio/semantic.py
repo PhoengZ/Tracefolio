@@ -1,6 +1,6 @@
 import ast
-from functools import lru_cache
 import re
+from functools import lru_cache
 
 from .contracts.packets import SemanticFileEntry
 from .privacy import path_allowed, sanitize_text

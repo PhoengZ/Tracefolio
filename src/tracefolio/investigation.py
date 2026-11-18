@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from .collection import project_fingerprint, provider_for, valid_project_fingerprints
+from .collection import provider_for, valid_project_fingerprints
 from .contracts.packets import InvestigationPacket, PacketWorkRoute
 from .errors import TracefolioError
 from .privacy import path_allowed, sanitize_text
