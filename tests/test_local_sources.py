@@ -258,4 +258,25 @@ def test_git_raw_blob_reads_respect_total_budget(repo, monkeypatch):
     assert sum(consumed) <= 10
 
 
+def test_git_rename_and_multi_file_commit_deduplicate_message_and_filter_noise(repo):
+    from tracefolio.privacy import mandatory_allowed
+    assert not mandatory_allowed("poetry.lock")
+    assert not mandatory_allowed("frontend/bundle.min.js")
+    base_head = git(repo, "rev-parse", "HEAD")
+    (repo / "alpha.py").write_text("alpha = 1\n", encoding="utf-8")
+    (repo / "beta.py").write_text("beta = 2\n", encoding="utf-8")
+    (repo / "poetry.lock").write_text("lock = 999\n", encoding="utf-8")
+    git(repo, "add", "alpha.py", "beta.py", "poetry.lock")
+    git(repo, "commit", "-qm", "multi file feature\n\nDetailed body paragraph only needed once.")
+    git(repo, "mv", "alpha.py", "renamed_alpha.py")
+    git(repo, "commit", "-qm", "rename alpha")
+    from tracefolio.contracts.evidence import SourceCursor
+    result = LocalGitProvider().collect_source(request(repo), SourceCursor(head=base_head))
+    assert all(e.source_relative_path != "poetry.lock" for e in result.evidence)
+    multi = [e for e in result.evidence if "multi file feature" in e.payload]
+    assert len(multi) == 2
+    assert sum("Detailed body paragraph only needed once." in e.payload for e in multi) == 1
+    renamed = next(e for e in result.evidence if e.source_relative_path == "renamed_alpha.py")
+    assert "change: R100 alpha.py -> renamed_alpha.py" in renamed.payload
+    assert "alpha = 1" not in renamed.payload
 

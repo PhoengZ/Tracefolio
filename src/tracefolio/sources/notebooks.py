@@ -54,3 +54,12 @@ def normalize_text(raw: bytes, path: str, limits) -> tuple[str, dict]:
         raise TracefolioError("normalized_text_budget", exit_code=3)
     return text, metadata
 
+
+def filter_changed_cells(before_meta: dict, after_meta: dict) -> dict:
+    if not after_meta or "cells" not in after_meta or not before_meta.get("cells"):
+        return after_meta
+    prior_digests = {(c["cell_type"], c["source_digest"]) for c in before_meta["cells"]}
+    changed = [c for c in after_meta["cells"]
+               if (c["cell_type"], c["source_digest"]) not in prior_digests]
+    return {**after_meta, "cells": changed or after_meta["cells"][:1]}
+

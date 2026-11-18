@@ -213,3 +213,38 @@ def test_publication_rejects_inconsistent_project_work_graph(prepared, fault):
     assert store.current("demo") is None
 
 
+def test_proposal_accepts_short_aliases_wildcard_accounting_and_incremental_rollup(prepared):
+    store, source, path, data = prepared
+    write_proposal(path, data)
+    apply_proposal(store, path)
+    first_ev = store.current("demo").work("work-a").provenance.evidence_refs[0]
+    (source / "one.py").write_text("checkpoint = 2\n")
+    collect_projects(store.config, ["demo"])
+    packet = store.read_packet(create_packet(store, "demo").packet_id)
+    compact_proposal = {
+        "packet_id": packet.packet_id,
+        "packet_digest": packet.packet_digest,
+        "project_id": packet.project_id,
+        "base_generation_id": packet.base_generation_id,
+        "collection_revision": packet.collection_revision,
+        "project_summary": "Updated checkpoint implementation.",
+        "work_updates": [{
+            "work_id": "work-a",
+            "title": "Checkpoint handling",
+            "actions": ["Updated checkpoint value."],
+            "claims": [{"claim_id": "checkpoint", "statement": "Updates checkpoint handling.",
+                        "status": "observed", "evidence_refs": ["e1"]}],
+            "implementation_status": "implemented",
+            "analysis_status": "ready",
+            "provenance": {"evidence_refs": ["e1"], "source_ids": ["code"]},
+        }],
+        "analyzed_evidence_ids": ["*"],
+    }
+    write_proposal(path, compact_proposal)
+    result = apply_proposal(store, path)
+    assert result.status == "published"
+    updated_work = store.current("demo").work("work-a")
+    assert updated_work.record_revision == 2
+    assert set(updated_work.provenance.evidence_refs) == {first_ev, packet.evidence[0].evidence_id}
+    assert store.read_state("demo").pending_analysis == []
+

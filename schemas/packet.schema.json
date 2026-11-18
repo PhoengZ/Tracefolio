@@ -673,6 +673,13 @@
       "title": "Pending Evidence Ids",
       "type": "array"
     },
+    "evidence_aliases": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Evidence Aliases",
+      "type": "object"
+    },
     "evidence": {
       "items": {
         "$ref": "#/$defs/EvidenceRecord"

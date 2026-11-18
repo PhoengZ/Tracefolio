@@ -24,6 +24,7 @@ class InvestigationPacket(Artifact):
     collection_revision: int = Field(ge=0)
     allowed_evidence_ids: list[str]
     pending_evidence_ids: list[str]
+    evidence_aliases: dict[str, str] = Field(default_factory=dict)
     evidence: list[EvidenceRecord]
     prior_works: list[WorkRecord] = Field(default_factory=list)
     configured_work_ids: list[Id] = Field(default_factory=list)
