@@ -1,4 +1,5 @@
 import ast
+from functools import lru_cache
 import re
 
 from .contracts.packets import SemanticFileEntry
@@ -113,6 +114,7 @@ def _python_symbols(code: str, max_symbols: int) -> list[str]:
     return symbols[:max_symbols]
 
 
+@lru_cache(maxsize=4096)
 def extract_semantic_symbols(path: str | None, payload: str, max_symbols: int = 30) -> tuple[str, list[str]]:
     kind = detect_file_kind(path)
     code = _clean_code_text(payload or "")
