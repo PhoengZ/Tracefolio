@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from .collection import project_fingerprint, provider_for
+from .collection import project_fingerprint, provider_for, valid_project_fingerprints
 from .contracts.packets import InvestigationPacket, PacketWorkRoute
 from .errors import TracefolioError
 from .privacy import path_allowed, sanitize_text
@@ -58,7 +58,7 @@ def create_packet(store: StateStore, project_id: str, *, work_id=None) -> Packet
         raise TracefolioError("unknown_project")
     with store.lock(project_id):
         ledger = store.read_state(project_id)
-        if ledger.route_fingerprint != project_fingerprint(store.config, project):
+        if ledger.route_fingerprint not in valid_project_fingerprints(store.config, project):
             raise TracefolioError("collection_required")
         generation = store.current(project_id, ledger)
         previous = {w.work_id: w for w in effective_works(generation, ledger)}
@@ -88,10 +88,24 @@ def create_packet(store: StateStore, project_id: str, *, work_id=None) -> Packet
             include_work(ledger.invalidated_work_ids[0], selected, selected_works,
                          include_prior_evidence=True)
 
-        def build(items, works, pending):
-            sem_map = build_semantic_map(project, list(items.values()), store.config.policy)
-            pkt = _finish(InvestigationPacket(
-                packet_id="pending", packet_digest="pending", project_id=project_id,
+        sem_cache = {}
+
+        def cached_sem_map(items):
+            for eid, rec in items.items():
+                if eid not in sem_cache:
+                    entries = build_semantic_map(project, [rec], store.config.policy)
+                    sem_cache[eid] = entries[0] if entries else None
+            by_key = {}
+            for eid in items:
+                entry = sem_cache.get(eid)
+                if entry is not None:
+                    by_key[(entry.source_id, entry.path)] = entry
+            return [by_key[k] for k in sorted(by_key)]
+
+        def build(items, works, pending, *, finalize=True):
+            sem_map = cached_sem_map(items)
+            pkt = InvestigationPacket(
+                packet_id="packet-" + ("0" * 24), packet_digest="0" * 64, project_id=project_id,
                 project_title=sanitize_text(project.title, store.config.policy).text,
                 project_context=sanitize_text(project.context, store.config.policy).text,
                 base_generation_id=ledger.current_generation_id,
@@ -109,23 +123,31 @@ def create_packet(store: StateStore, project_id: str, *, work_id=None) -> Packet
                                    for path in unit.include_paths])
                     for source in project.sources for unit in source.work_units],
                 known_work_ids=sorted(previous), coverage=ledger.coverage(),
-            ))
+            )
+            if finalize:
+                pkt = _finish(pkt)
             if sem_map and _size(pkt) > store.config.registry.limits.max_packet_bytes:
-                pkt = _finish(pkt.model_copy(update={"semantic_map": []}))
+                pkt = pkt.model_copy(update={"semantic_map": []})
+                if finalize:
+                    pkt = _finish(pkt)
             return pkt
 
         consumed = []
+        work_paths = {
+            key: {
+                (old.source_id, old.source_relative_path)
+                for old in (store.read_evidence(r) for r in refs)
+            }
+            for key, refs in work_refs.items()
+        }
         for ref in candidates:
             record = store.read_evidence(ref)
             trial = dict(selected)
             trial_works = dict(selected_works)
             trial[ref] = record
-            for key, refs in work_refs.items():
-                related = any(
-                    (old.source_id, old.source_relative_path) ==
-                    (record.source_id, record.source_relative_path)
-                    for old in (store.read_evidence(r) for r in refs))
-                if related:
+            rec_key = (record.source_id, record.source_relative_path)
+            for key, paths_set in work_paths.items():
+                if rec_key in paths_set:
                     include_work(key, trial, trial_works)
             for source in project.sources:
                 if source.source_id == record.source_id and record.source_relative_path:
@@ -133,7 +155,7 @@ def create_packet(store: StateStore, project_id: str, *, work_id=None) -> Packet
                         if unit.work_id in previous and path_allowed(
                                 record.source_relative_path, unit.include_paths, []):
                             include_work(unit.work_id, trial, trial_works)
-            packet = build(trial, trial_works, consumed + [ref])
+            packet = build(trial, trial_works, consumed + [ref], finalize=False)
             if _size(packet) > store.config.registry.limits.max_packet_bytes:
                 if not consumed:
                     return PacketResult("blocked_budget")

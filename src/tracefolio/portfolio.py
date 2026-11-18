@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from .collection import project_fingerprint
+from .collection import valid_project_fingerprints
 from .contracts.knowledge import WorkRecord
 from .contracts.portfolio import PortfolioEntry, PortfolioSnapshot, SafeError
 from .errors import TracefolioError
@@ -22,7 +22,7 @@ def summarize_portfolio(store, registry):
             coverage = ledger.coverage()
             errors = [SafeError(code=code) for state in ledger.sources.values()
                       for code in state.errors]
-            if ledger.route_fingerprint != project_fingerprint(store.config, route):
+            if ledger.route_fingerprint not in valid_project_fingerprints(store.config, route):
                 coverage.state = "partial"
                 errors.append(SafeError(code="route_changed"))
                 for work in works:

@@ -15,15 +15,32 @@ def provider_for(kind):
             "github_public": GitHubPublicProvider}[kind]()
 
 
-def source_fingerprint(config, project, source):
-    return digest({"source": source.model_dump(), "project_context": project.context,
+def source_fingerprint(config, project, source, *, include_default_mode=True):
+    src_data = source.model_dump()
+    if not include_default_mode and src_data.get("collection_mode") == "commits":
+        src_data.pop("collection_mode", None)
+    return digest({"source": src_data, "project_context": project.context,
                    "locator": config.locators[(project.project_id, source.source_id)],
                    "authors": sorted(config.author_emails), "privacy": config.policy.epoch})
 
 
-def project_fingerprint(config, project):
-    return digest({"project": project.model_dump(),
-                   "sources": [source_fingerprint(config, project, s) for s in project.sources]})
+def project_fingerprint(config, project, *, include_default_mode=True):
+    proj_data = project.model_dump()
+    if not include_default_mode:
+        for src in proj_data.get("sources", []):
+            if src.get("collection_mode") == "commits":
+                src.pop("collection_mode", None)
+    return digest({"project": proj_data,
+                   "sources": [source_fingerprint(config, project, s,
+                                                  include_default_mode=include_default_mode)
+                               for s in project.sources]})
+
+
+def valid_project_fingerprints(config, project) -> set[str]:
+    return {
+        project_fingerprint(config, project, include_default_mode=True),
+        project_fingerprint(config, project, include_default_mode=False),
+    }
 
 
 @dataclass
@@ -119,7 +136,7 @@ def collect_projects(config, project_ids, *, providers=None, mode=None):
                 ledger.reconciliation_sources = [s for s in ledger.reconciliation_sources
                                                  if s in active_sources]
                 if generation:
-                    if ledger.route_fingerprint != project_fingerprint(config, project):
+                    if ledger.route_fingerprint not in valid_project_fingerprints(config, project):
                         invalidated.update(w.work_id for w in generation.works)
                     for work in generation.works:
                         for ref in work_evidence_refs(work):
