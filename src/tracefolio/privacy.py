@@ -122,21 +122,22 @@ $ErrorActionPreference='Stop'
 $p=$env:TRACEFOLIO_ACL_TARGET
 $id=[Security.Principal.WindowsIdentity]::GetCurrent()
 $sid=$id.User
-$acl=Get-Acl -LiteralPath $p
-$owner=$acl.GetOwner([Security.Principal.SecurityIdentifier]).Value
-if ($owner -ne $sid.Value -and $owner -ne $id.Owner.Value) { throw 'State directory must be owned by current user' }
-$rules=@($acl.Access)
+$item=Get-Item -LiteralPath $p -Force
+$ownerSid=$item.GetAccessControl('Owner').GetOwner([Security.Principal.SecurityIdentifier])
+if ($ownerSid -ne $sid -and $ownerSid -ne $id.Owner -and -not ($id.Groups -contains $ownerSid)) { throw 'State directory must be owned by current user' }
+$acl=$item.GetAccessControl('Access')
+$rules=@($acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]))
 $alreadyPrivate=$acl.AreAccessRulesProtected -and $rules.Count -eq 1
 if ($alreadyPrivate) {
   $r=$rules[0]
-  $alreadyPrivate=($r.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -eq $sid.Value) -and ($r.AccessControlType -eq 'Allow') -and (($r.FileSystemRights -band [Security.AccessControl.FileSystemRights]::FullControl) -eq [Security.AccessControl.FileSystemRights]::FullControl) -and ($r.PropagationFlags -eq 'None') -and (($r.InheritanceFlags -band [Security.AccessControl.InheritanceFlags]::ContainerInherit) -ne 0) -and (($r.InheritanceFlags -band [Security.AccessControl.InheritanceFlags]::ObjectInherit) -ne 0)
+  $alreadyPrivate=($r.IdentityReference.Value -eq $sid.Value) -and ($r.AccessControlType -eq 'Allow') -and (($r.FileSystemRights -band [Security.AccessControl.FileSystemRights]::FullControl) -eq [Security.AccessControl.FileSystemRights]::FullControl) -and ($r.PropagationFlags -eq 'None') -and (($r.InheritanceFlags -band [Security.AccessControl.InheritanceFlags]::ContainerInherit) -ne 0) -and (($r.InheritanceFlags -band [Security.AccessControl.InheritanceFlags]::ObjectInherit) -ne 0)
 }
 if ($alreadyPrivate) { exit 0 }
 $acl.SetAccessRuleProtection($true,$false)
-foreach ($existingRule in @($acl.Access)) { $acl.RemoveAccessRuleSpecific($existingRule) }
+foreach ($existingRule in @($acl.GetAccessRules($true,$false,[Security.Principal.SecurityIdentifier]))) { [void]$acl.RemoveAccessRule($existingRule) }
 $rule=New-Object Security.AccessControl.FileSystemAccessRule($sid,'FullControl','ContainerInherit,ObjectInherit','None','Allow')
-$acl.AddAccessRule($rule)
-Set-Acl -LiteralPath $p -AclObject $acl
+$acl.SetAccessRule($rule)
+$item.SetAccessControl($acl)
 """
             env = dict(os.environ, TRACEFOLIO_ACL_TARGET=str(path))
             result = subprocess.run(
