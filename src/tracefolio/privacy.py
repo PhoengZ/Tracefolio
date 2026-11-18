@@ -120,9 +120,11 @@ def secure_private_root(path: Path) -> None:
             script = r"""
 $ErrorActionPreference='Stop'
 $p=$env:TRACEFOLIO_ACL_TARGET
-$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User
+$id=[Security.Principal.WindowsIdentity]::GetCurrent()
+$sid=$id.User
 $acl=Get-Acl -LiteralPath $p
-if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $sid.Value) { throw 'State directory must be owned by current user' }
+$owner=$acl.GetOwner([Security.Principal.SecurityIdentifier]).Value
+if ($owner -ne $sid.Value -and $owner -ne $id.Owner.Value) { throw 'State directory must be owned by current user' }
 $rules=@($acl.Access)
 $alreadyPrivate=$acl.AreAccessRulesProtected -and $rules.Count -eq 1
 if ($alreadyPrivate) {
