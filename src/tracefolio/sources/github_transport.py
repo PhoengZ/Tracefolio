@@ -2,7 +2,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import unquote, urlencode
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 from ..errors import TracefolioError
@@ -21,6 +21,34 @@ class GitHubReadError(TracefolioError):
         self.retry_after = retry_after
 
 
+def github_api_url(path: str, params: dict[str, str] | None = None) -> str:
+    if (not isinstance(path, str) or not re.fullmatch(
+            r"/repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_./%~-]+)?", path)):
+        raise TracefolioError("github_path_rejected")
+    if re.search(r"%(?![0-9A-Fa-f]{2})", path):
+        raise TracefolioError("github_path_rejected")
+    try:
+        decoded = unquote(path, errors="strict")
+    except UnicodeError:
+        raise TracefolioError("github_path_rejected") from None
+    # Reserved characters remain encoded in the outgoing URL, so encoded #, ? and %
+    # are literal ref/filename data. Inspect decoding layers only for path escapes.
+    while True:
+        if (any(part in {"", ".", ".."} for part in decoded.split("/")[1:])
+                or "\\" in decoded
+                or any(ord(char) < 32 or ord(char) == 127 for char in decoded)):
+            raise TracefolioError("github_path_rejected")
+        further = unquote(decoded)
+        if further == decoded:
+            break
+        decoded = further
+    if params and (not isinstance(params, dict) or any(
+            key not in {"ref", "sha", "per_page", "page", "recursive"} or not isinstance(value, str)
+            for key, value in params.items())):
+        raise TracefolioError("github_path_rejected")
+    return "https://api.github.com" + path + ("?" + urlencode(params) if params else "")
+
+
 class StrictRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         # Fail closed even for a rename; the owner can update the explicit locator.
@@ -33,12 +61,7 @@ class GitHubTransport:
         self.opener = build_opener(ProxyHandler({}), StrictRedirect())
 
     def get_json(self, path: str, params: dict[str, str] | None = None) -> ApiResponse:
-        if (not re.fullmatch(r"/repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_./%~-]+)?",
-                             path) or ".." in path.split("/")):
-            raise TracefolioError("github_path_rejected")
-        url = "https://api.github.com" + path
-        if params:
-            url += "?" + urlencode(params)
+        url = github_api_url(path, params)
         request = Request(url, headers={"Accept": "application/vnd.github+json",
                                        "User-Agent": "Tracefolio/0.1",
                                        "X-GitHub-Api-Version": "2022-11-28"})

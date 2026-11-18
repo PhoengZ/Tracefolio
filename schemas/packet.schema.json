@@ -386,6 +386,57 @@
       "title": "Provenance",
       "type": "object"
     },
+    "SemanticFileEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "maxLength": 100,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "work_ids": {
+          "items": {
+            "maxLength": 100,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "type": "string"
+          },
+          "title": "Work Ids",
+          "type": "array"
+        },
+        "status": {
+          "default": "active",
+          "enum": [
+            "active",
+            "deleted"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "symbols": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Symbols",
+          "type": "array"
+        }
+      },
+      "required": [
+        "source_id",
+        "path",
+        "kind"
+      ],
+      "title": "SemanticFileEntry",
+      "type": "object"
+    },
     "Skill": {
       "additionalProperties": false,
       "properties": {
@@ -679,6 +730,13 @@
       },
       "title": "Evidence Aliases",
       "type": "object"
+    },
+    "semantic_map": {
+      "items": {
+        "$ref": "#/$defs/SemanticFileEntry"
+      },
+      "title": "Semantic Map",
+      "type": "array"
     },
     "evidence": {
       "items": {

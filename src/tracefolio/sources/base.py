@@ -51,13 +51,14 @@ def coverage(request: SourceRequest, revision: str | None, complete: bool,
 
 
 def evidence(request: SourceRequest, revision: str, path: str | None, payload: str,
-             *, origin="snapshot", attribution="unverified", normalization=None, cells=None
+             *, origin="snapshot", attribution="unverified", completeness="complete",
+             normalization=None, cells=None
              ) -> EvidenceRecord:
     clean = sanitize_text(payload, request.policy)
     safe_path = sanitize_text(path, request.policy).text if path else None
     body = {"project_id": request.project_id, "source_id": request.source.source_id,
             "origin": origin, "revision": revision, "source_relative_path": safe_path,
-            "payload": clean.text, "attribution": attribution,
+            "payload": clean.text, "attribution": attribution, "completeness": completeness,
             "normalization": normalization, "cells": cells or []}
     record = EvidenceRecord(evidence_id="pending", content_digest="pending",
                             redactions=clean.redactions, **body)

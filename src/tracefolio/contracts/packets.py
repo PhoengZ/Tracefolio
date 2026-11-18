@@ -14,6 +14,15 @@ class PacketWorkRoute(StrictModel):
     include_paths: list[str]
 
 
+class SemanticFileEntry(StrictModel):
+    source_id: Id
+    path: str
+    kind: str
+    work_ids: list[Id] = Field(default_factory=list)
+    status: Literal["active", "deleted"] = "active"
+    symbols: list[str] = Field(default_factory=list)
+
+
 class InvestigationPacket(Artifact):
     packet_id: Id
     packet_digest: str
@@ -25,6 +34,7 @@ class InvestigationPacket(Artifact):
     allowed_evidence_ids: list[str]
     pending_evidence_ids: list[str]
     evidence_aliases: dict[str, str] = Field(default_factory=dict)
+    semantic_map: list[SemanticFileEntry] = Field(default_factory=list)
     evidence: list[EvidenceRecord]
     prior_works: list[WorkRecord] = Field(default_factory=list)
     configured_work_ids: list[Id] = Field(default_factory=list)
