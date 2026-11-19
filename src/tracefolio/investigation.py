@@ -71,6 +71,19 @@ def create_packet(store: StateStore, project_id: str, *, work_id=None) -> Packet
         candidates = list(ledger.pending_analysis)
         selected, selected_works = {}, {}
         work_refs = {key: work_evidence_refs(work) for key, work in previous.items()}
+        if work_id:
+            if work_id not in previous:
+                raise TracefolioError('unknown_work')
+            paths = {(e.source_id, e.source_relative_path)
+                     for e in (store.read_evidence(r) for r in work_refs[work_id])}
+            def associated(ref):
+                record = store.read_evidence(ref)
+                return ((record.source_id, record.source_relative_path) in paths or any(
+                    unit.work_id == work_id and record.source_relative_path and path_allowed(
+                        record.source_relative_path, unit.include_paths, [])
+                    for source in project.sources if source.source_id == record.source_id
+                    for unit in source.work_units))
+            candidates = [ref for ref in candidates if associated(ref)]
 
         def include_work(work_key, target_evidence, target_works, *, include_prior_evidence=False):
             work = previous[work_key]
@@ -147,12 +160,12 @@ def create_packet(store: StateStore, project_id: str, *, work_id=None) -> Packet
             trial[ref] = record
             rec_key = (record.source_id, record.source_relative_path)
             for key, paths_set in work_paths.items():
-                if rec_key in paths_set:
+                if rec_key in paths_set and (not work_id or key == work_id):
                     include_work(key, trial, trial_works)
             for source in project.sources:
                 if source.source_id == record.source_id and record.source_relative_path:
                     for unit in source.work_units:
-                        if unit.work_id in previous and path_allowed(
+                        if (not work_id or unit.work_id == work_id) and unit.work_id in previous and path_allowed(
                                 record.source_relative_path, unit.include_paths, []):
                             include_work(unit.work_id, trial, trial_works)
             packet = build(trial, trial_works, consumed + [ref], finalize=False)

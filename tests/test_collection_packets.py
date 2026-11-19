@@ -38,6 +38,38 @@ def test_unchanged_collection_is_noop(workspace):
     assert len(after.evidence_ids) == 1
 
 
+def test_collection_report_separates_existing_backlog(workspace):
+    cfg, _, _ = workspace
+    first = collect_projects(cfg, ['demo']).projects[0]
+    assert first['pending_before'] == 0
+    assert first['pending_after'] == 1
+    second = collect_projects(cfg, ['demo']).projects[0]
+    assert second['new_evidence'] == second['revisited_evidence'] == 0
+    assert second['pending_before'] == second['pending_after'] == 1
+
+
+def test_target_work_does_not_consume_unrelated_pending(workspace):
+    from test_proposals import proposal_for, write_proposal
+    from tracefolio.proposals import apply_proposal
+    cfg, source, path = workspace
+    collect_projects(cfg, ['demo'])
+    store = StateStore.open(cfg)
+    seed_generation(store)
+    source.joinpath('one.py').write_text('checkpoint = 2\n')
+    source.joinpath('unrelated.py').write_text('unrelated = 3\n')
+    collect_projects(cfg, ['demo'])
+    packet = store.read_packet(create_packet(store, 'demo', work_id='work-a').packet_id)
+    assert {e.source_relative_path for e in packet.evidence} == {'one.py'}
+    proposal_path = path.parent / 'proposal.json'
+    write_proposal(proposal_path, proposal_for(packet))
+    apply_proposal(store, proposal_path)
+    pending = store.read_state('demo').pending_analysis
+    assert [store.read_evidence(e).source_relative_path for e in pending] == ['unrelated.py']
+    review = store.read_packet(create_packet(store, 'demo', work_id='work-a').packet_id)
+    assert not review.pending_evidence_ids
+    assert {e.source_relative_path for e in review.evidence} == {'one.py'}
+
+
 def test_add_route_without_code_change_and_source_isolation(workspace, monkeypatch):
     cfg, _source, path = workspace
     collect_projects(cfg, ["demo"])

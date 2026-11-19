@@ -76,10 +76,12 @@ def collect_projects(config, project_ids, *, providers=None, mode=None):
         try:
             with store.lock(project_id):
                 ledger = store.read_state(project_id)
+                pending_before = len(ledger.pending_analysis)
                 before = _meaningful(ledger)
                 generation = store.current(project_id, ledger)
                 invalidated = set(ledger.invalidated_work_ids)
                 changed_paths, changed_sources, count = set(), set(), 0
+                revisited_count = 0
                 for source in project.sources:
                     req = store.source_request(project_id, source.source_id)
                     if mode in {"commits", "snapshot"}:
@@ -118,6 +120,8 @@ def collect_projects(config, project_ids, *, providers=None, mode=None):
                             if is_new:
                                 ledger.evidence_ids.append(record.evidence_id)
                                 count += 1
+                            elif revisited:
+                                revisited_count += 1
                             if is_new or revisited:
                                 if record.evidence_id not in ledger.pending_analysis:
                                     ledger.pending_analysis.append(record.evidence_id)
@@ -160,7 +164,15 @@ def collect_projects(config, project_ids, *, providers=None, mode=None):
                                           for s in ledger.sources.values())
                 reports.append({"project_id": project_id,
                                 "status": "complete" if collection_complete else "partial",
-                                "new_evidence": count})
+                                "new_evidence": count, "revisited_evidence": revisited_count,
+                                "pending_before": pending_before,
+                                "pending_after": len(ledger.pending_analysis),
+                                "invalidated_work_ids": ledger.invalidated_work_ids,
+                                "reconciliation_source_ids": ledger.reconciliation_sources,
+                                "limitations": sorted({v for s in ledger.sources.values()
+                                                       for v in [*s.errors, *(v for c in
+                                                           s.coverage.sources
+                                                           for v in c.limitations)]})})
         except TracefolioError as error:
             reports.append({"project_id": project_id, "status": "error",
                             "code": error.code, "new_evidence": 0})
