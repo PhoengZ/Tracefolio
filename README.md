@@ -68,7 +68,7 @@ Acceptance prompt for the agent working in this checkout:
 
 > Summarize all configured projects and work items. Update changed sources first. Return English portfolio JSON with evidence references, unknowns, coverage, and review status. Do not create a resume or send any messages.
 
-`summarize` reads existing knowledge; the agent follows the full workflow to update it first. Every configured project appears, including disabled, pending, partial, and failed projects. Exit codes: `0` success/ready, `2` invalid or unsafe input, `3` incomplete/retryable, `4` operational failure. JSON stdout uses ASCII escapes (a UTF-8 subset); persisted files are UTF-8. Safe JSON diagnostics use stderr. Export with `--out <absolute-private-state>/exports/portfolio.json`; other state namespaces are protected from export writes. No public export exists.
+`summarize` reads existing knowledge without collecting or analyzing sources. Ordinary requests use `summarize --all --view brief --format json`; explicit updates first use `status --all` and the incremental workflow. The full JSON view remains the compatibility default and `--out` always saves the full private artifact. `partial` is coverage metadata, not an instruction to reanalyze. Every configured project appears, including disabled, pending, partial, and failed projects. Exit codes: `0` success/ready, `2` invalid or unsafe input, `3` incomplete/retryable, `4` operational failure. JSON stdout uses ASCII escapes (a UTF-8 subset); persisted files are UTF-8. Safe JSON diagnostics use stderr. Export with `--out <absolute-private-state>/exports/portfolio.json`; other state namespaces are protected from export writes. No public export exists.
 
 ## Verification and limits
 
@@ -81,3 +81,5 @@ python -m tracefolio.schema_export --check
 Tests use synthetic local repositories and a fake GitHub transport. Windows and Linux CI are configured; consult actual CI results before claiming a platform passed. Anonymous GitHub limits, missing patches, large files, rewritten history, and bounded packets can leave coverage partial. Notebooks contribute code/Markdown cells only, without execution or saved outputs. No measured impact is inferred from a successful training script.
 
 Read [security boundaries](docs/security.md), [schemas and state](docs/schema.md), and [manual acceptance](docs/manual-acceptance.md). Private source content may still be confidential after heuristic redaction. Your chosen external harness may transmit packets to its model provider.
+
+Private state can optionally live at the validated Git-ignored `.tracefolio-local/state` location under an explicitly bound checkout. Registries remain external. See [migration and recovery](docs/harness-workflow.md#repository-local-private-state-and-migration).

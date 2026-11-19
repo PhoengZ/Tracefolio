@@ -68,4 +68,25 @@ def export_portfolio(store, snapshot, path):
     export_root = store.root.resolve() / "exports"
     if not target.is_relative_to(export_root) or target == export_root:
         raise TracefolioError("unsafe_export", "Export must be inside the private state's exports directory.")
-    store._atomic_json(target, snapshot.model_dump(mode="json"))
+    with store.lock('export-writer'):
+        store._atomic_json(target, snapshot.model_dump(mode="json"))
+
+
+def brief_portfolio(snapshot):
+    """Project saved knowledge without sending historical provenance to the harness."""
+    entries = []
+    for entry in snapshot.entries:
+        entries.append({
+            'project_id': entry.project_id, 'status': entry.status,
+            'title': entry.project.title if entry.project else None,
+            'summary': entry.project.summary if entry.project else None,
+            'works': [w.model_dump(include={
+                'work_id', 'title', 'problem', 'actions', 'implementation_status',
+                'contribution', 'analysis_status', 'review_status', 'unknowns'}) for w in entry.works],
+            'coverage': None if entry.coverage is None else {
+                'state': entry.coverage.state,
+                'pending_evidence_count': entry.coverage.pending_evidence_count,
+                'limitations': sorted({v for s in entry.coverage.sources for v in s.limitations})},
+            'errors': [e.code for e in entry.errors],
+        })
+    return {'configured_project_count': snapshot.configured_project_count, 'entries': entries}

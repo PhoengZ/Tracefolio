@@ -1,17 +1,19 @@
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from .collection import collect_projects
 from .errors import TracefolioError
 from .investigation import create_packet, extend_packet
-from .portfolio import export_portfolio, summarize_portfolio
+from .portfolio import brief_portfolio, export_portfolio, summarize_portfolio
 from .private_config import load_config_set, selected_config_paths
 from .proposals import apply_proposal
 from .sources.base import ContextRequest
 from .sources.github_plugin_transport import GitHubPluginTransport
 from .sources.github_public import GitHubPublicProvider
 from .state import StateStore
+from .status import inspect_project
 
 
 class SafeParser(argparse.ArgumentParser):
@@ -50,6 +52,18 @@ def parser():
     select.add_argument("--project", action="append")
     summary.add_argument("--format", choices=["json"], default="json")
     summary.add_argument("--out")
+    summary.add_argument("--view", choices=["brief", "full"], default="full")
+    status = commands.add_parser("status")
+    select = status.add_mutually_exclusive_group(required=True)
+    select.add_argument("--all", action="store_true")
+    select.add_argument("--project", action="append")
+    state = commands.add_parser('state')
+    migrate = state.add_subparsers(dest='state_command', required=True).add_parser('migrate')
+    migrate.add_argument('--to-checkout', type=Path, required=True)
+    migrate.add_argument('--bindings', type=Path, required=True)
+    mode = migrate.add_mutually_exclusive_group()
+    mode.add_argument('--dry-run', action='store_true')
+    mode.add_argument('--recover', choices=['resume', 'rollback'])
     return root
 
 
@@ -68,23 +82,36 @@ def main(argv=None) -> int:
             emit({"status": "valid", "configured_project_count": len(config.registry.projects),
                   "enabled_project_count": sum(p.enabled for p in config.registry.projects)})
             return 0
+        if args.command == 'state':
+            from .migration import migrate_state, recover_migration
+            result = (recover_migration(config, args.to_checkout, args.bindings, mode=args.recover)
+                      if args.recover else migrate_state(config, args.to_checkout, args.bindings,
+                                                        dry_run=args.dry_run))
+            emit(result)
+            return 0
         if args.command == "collect":
             ids = [p.project_id for p in config.registry.projects] if args.all else args.project
             result = collect_projects(config, ids, providers=providers, mode=args.mode)
             emit(result.as_dict())
             return 3 if result.partial else 0
-        store = StateStore.open(config)
-        if args.command == "summarize":
+        read_only = args.command == 'status' or (args.command == 'summarize' and not args.out)
+        store = StateStore.open(config, read_only=read_only)
+        if args.command in {"summarize", "status"}:
             registry = config.registry
             if not args.all:
                 if not set(args.project) <= {p.project_id for p in registry.projects}:
                     raise TracefolioError("unknown_project")
                 registry = registry.model_copy(update={"projects": [
                     p for p in registry.projects if p.project_id in args.project]})
+            if args.command == 'status':
+                entries = [inspect_project(store, p) for p in registry.projects]
+                emit({'configured_project_count': len(registry.projects), 'entries': entries})
+                return 3 if any(e['analysis_action'] in {'blocked', 'missing'}
+                                for e in entries) else 0
             result = summarize_portfolio(store, registry)
             if args.out:
                 export_portfolio(store, result, args.out)
-            emit(result.model_dump(mode="json"))
+            emit(brief_portfolio(result) if args.view == 'brief' else result.model_dump(mode="json"))
             return 3 if any(e.status not in {"ready", "disabled"} for e in result.entries) else 0
         if args.command == "apply":
             emit(apply_proposal(store, args.proposal).as_dict())

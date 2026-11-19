@@ -8,7 +8,7 @@ from .contracts.packets import AnalysisProposal
 from .errors import TracefolioError
 from .investigation import validate_packet
 from .privacy import sanitize_text
-from .private_config import validate_export_path
+from .private_config import validate_proposal_path
 from .sources.base import digest
 from .state import PublicationResult, StateStore, work_evidence_refs
 
@@ -64,7 +64,7 @@ def _resolve_proposal(proposal: AnalysisProposal, packet) -> AnalysisProposal:
 
 
 def apply_proposal(store: StateStore, proposal_path: Path) -> PublicationResult:
-    path = validate_export_path(store.config, Path(proposal_path))
+    path = validate_proposal_path(store.config, Path(proposal_path))
     try:
         limit = store.config.registry.limits.max_packet_bytes
         if path.stat().st_size > limit:
@@ -202,6 +202,7 @@ def apply_proposal(store: StateStore, proposal_path: Path) -> PublicationResult:
             for source_id, _ in affected if source_id in ledger.sources)
         if not pending_related and complete_sources:
             ledger.invalidated_work_ids.remove(work_id)
+            ledger.review_evidence_by_work.pop(work_id, None)
 
     pending_sources = {store.read_evidence(ref).source_id for ref in ledger.pending_analysis}
     invalidated_sources = {source for work_id in ledger.invalidated_work_ids

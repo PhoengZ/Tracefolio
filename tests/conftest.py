@@ -45,3 +45,22 @@ def knowledge_workspace(tmp_path, monkeypatch, route_payload):
     monkeypatch.setenv("TRACEFOLIO_STATE_DIR", str(tmp_path / "state"))
     return load_config(path), source, path
 
+
+
+@pytest.fixture
+def migration_setup(knowledge_workspace, tmp_path):
+    from test_local_state import git
+    from test_portfolio_cli import publish_demo
+
+    cfg, source, config_path = knowledge_workspace
+    store = publish_demo(cfg, config_path.parent)
+    checkout = tmp_path / 'checkout'
+    checkout.mkdir()
+    git(checkout, 'init', '-q')
+    checkout.joinpath('.gitignore').write_text('/.tracefolio-local/\n/bindings.local.json\n')
+    bindings = checkout / 'bindings.local.json'
+    bindings.write_text(json.dumps({'TRACEFOLIO_CONFIG': str(config_path),
+                                   'TRACEFOLIO_STATE_DIR': str(cfg.state_root),
+                                   'TRACEFOLIO_DEMO_ROOT': str(source)}))
+    return cfg, store, checkout, bindings
+

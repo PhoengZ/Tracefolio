@@ -38,6 +38,87 @@ def test_unchanged_collection_is_noop(workspace):
     assert len(after.evidence_ids) == 1
 
 
+def test_collection_report_separates_existing_backlog(workspace):
+    cfg, _, _ = workspace
+    first = collect_projects(cfg, ['demo']).projects[0]
+    assert first['pending_before'] == 0
+    assert first['pending_after'] == 1
+    second = collect_projects(cfg, ['demo']).projects[0]
+    assert second['new_evidence'] == second['revisited_evidence'] == 0
+    assert second['pending_before'] == second['pending_after'] == 1
+
+
+def test_target_work_does_not_consume_unrelated_pending(workspace):
+    from test_proposals import proposal_for, write_proposal
+
+    from tracefolio.proposals import apply_proposal
+    cfg, source, path = workspace
+    collect_projects(cfg, ['demo'])
+    store = StateStore.open(cfg)
+    seed_generation(store)
+    source.joinpath('one.py').write_text('checkpoint = 2\n')
+    source.joinpath('unrelated.py').write_text('unrelated = 3\n')
+    collect_projects(cfg, ['demo'])
+    packet = store.read_packet(create_packet(store, 'demo', work_id='work-a').packet_id)
+    assert {e.source_relative_path for e in packet.evidence} == {'one.py'}
+    proposal_path = path.parent / 'proposal.json'
+    write_proposal(proposal_path, proposal_for(packet))
+    apply_proposal(store, proposal_path)
+    pending = store.read_state('demo').pending_analysis
+    assert [store.read_evidence(e).source_relative_path for e in pending] == ['unrelated.py']
+    review = store.read_packet(create_packet(store, 'demo', work_id='work-a').packet_id)
+    assert not review.pending_evidence_ids
+    assert {e.source_relative_path for e in review.evidence} == {'one.py'}
+
+
+def test_snapshot_override_continues_in_persisted_mode(workspace):
+    cfg, _, _ = workspace
+    seen = []
+    from tracefolio.sources.local_directory import LocalDirectoryProvider
+    class Provider:
+        def collect_source(self, req, previous):
+            seen.append(req.source.collection_mode)
+            return LocalDirectoryProvider().collect_source(req, previous)
+    collect_projects(cfg, ['demo'], mode='snapshot', providers={'local_directory': Provider()})
+    collect_projects(cfg, ['demo'], providers={'local_directory': Provider()})
+    assert seen == ['snapshot', 'snapshot']
+
+
+def test_shared_new_file_requires_each_affected_work_review(workspace):
+    from test_proposals import proposal_for, write_proposal
+
+    from tracefolio.contracts.routes import WorkUnit
+    from tracefolio.proposals import apply_proposal
+    cfg, source, config_path = workspace
+    source.joinpath('two.py').write_text('other = 1\n')
+    cfg.registry.projects[0].sources[0].work_units = [
+        WorkUnit(work_id='work-a', context='A', include_paths=['one.py', 'shared.py']),
+        WorkUnit(work_id='work-b', context='B', include_paths=['two.py', 'shared.py'])]
+    collect_projects(cfg, ['demo'])
+    store = StateStore.open(cfg)
+    state = store.read_state('demo')
+    by_path = {store.read_evidence(e).source_relative_path: e for e in state.evidence_ids}
+    works = [WorkRecord(project_id='demo', work_id=wid, record_revision=1, title=wid,
+                        analysis_status='ready', provenance=Provenance(
+                            source_ids=['code'], evidence_refs=[by_path[path]]))
+             for wid, path in [('work-a', 'one.py'), ('work-b', 'two.py')]]
+    state.pending_analysis = []
+    project = ProjectRecord(project_id='demo', record_revision=1, title='Demo', summary='Two works',
+                            work_ids=['work-a', 'work-b'], evidence_ids=state.evidence_ids,
+                            coverage=state.coverage())
+    store.publish('demo', None, project, works, state)
+    source.joinpath('shared.py').write_text('shared = True\n')
+    collect_projects(cfg, ['demo'])
+    assert store.read_state('demo').invalidated_work_ids == ['work-a', 'work-b']
+    packet = store.read_packet(create_packet(store, 'demo', work_id='work-a').packet_id)
+    path = config_path.parent / 'proposal.json'
+    write_proposal(path, proposal_for(packet))
+    apply_proposal(store, path)
+    assert store.read_state('demo').invalidated_work_ids == ['work-b']
+    packet = store.read_packet(create_packet(store, 'demo', work_id='work-b').packet_id)
+    assert 'shared.py' in {e.source_relative_path for e in packet.evidence}
+
+
 def test_add_route_without_code_change_and_source_isolation(workspace, monkeypatch):
     cfg, _source, path = workspace
     collect_projects(cfg, ["demo"])

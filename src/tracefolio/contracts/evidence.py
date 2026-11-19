@@ -29,6 +29,7 @@ class EvidenceRecord(Artifact):
 
 
 class SourceCursor(Artifact):
+    collection_mode: Literal['commits', 'snapshot'] | None = None
     fingerprint: str = ""
     head: str | None = None
     target: str | None = None

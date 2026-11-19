@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -22,6 +23,47 @@ class ResolvedConfig:
     locators: dict[tuple[str, str], str] = field(repr=False)
     policy: PrivacyPolicy = field(repr=False)
     author_emails: frozenset[str] = field(default_factory=frozenset, repr=False)
+    local_state_checkout: Path | None = field(default=None, repr=False)
+
+
+def reject_links(path: Path) -> None:
+    """Check existing ancestors before resolve() can hide a redirect."""
+    for current in [path, *path.parents]:
+        if current.is_symlink() or (current.exists() and (
+                getattr(current, 'is_junction', lambda: False)() or
+                getattr(current.lstat(), 'st_file_attributes', 0) & 0x400)):
+            raise TracefolioError('unsafe_root')
+
+
+def git_output(checkout: Path, *args) -> bytes:
+    try:
+        result = subprocess.run(['git', '-C', str(checkout), *args], capture_output=True,
+                                timeout=15, check=False)
+        if result.returncode:
+            raise TracefolioError('unsafe_root')
+        return result.stdout
+    except (OSError, subprocess.TimeoutExpired):
+        raise TracefolioError('unsafe_root') from None
+
+
+def validate_ignored_path(checkout: Path, path: Path) -> None:
+    reject_links(path)
+    relative = path.relative_to(checkout).as_posix()
+    probe = relative + '/' if not path.suffix else relative
+    git_output(checkout, 'check-ignore', '--no-index', '--quiet', '--', probe)
+    if git_output(checkout, 'ls-files', '--cached', '-z', '--', relative):
+        raise TracefolioError('unsafe_root')
+
+
+def validate_state_location(state: Path, checkout: Path | None) -> None:
+    if checkout is None:
+        return
+    reject_links(checkout)
+    reject_links(state)
+    top = Path(git_output(checkout, 'rev-parse', '--show-toplevel').decode().strip()).resolve()
+    if top != checkout.resolve() or state != checkout / '.tracefolio-local' / 'state':
+        raise TracefolioError('unsafe_root')
+    validate_ignored_path(checkout, checkout / '.tracefolio-local')
 
 
 def _binding(name: str) -> str:
@@ -99,9 +141,19 @@ def load_config_set(config_paths: list[Path]) -> ResolvedConfig:
             seen.add(project.project_id)
             projects.append(project)
     registry = first.model_copy(update={"projects": projects})
-    state = _absolute(_binding(registry.state_dir_env))
+    raw_state = Path(_binding(registry.state_dir_env))
+    reject_links(raw_state)
+    state = _absolute(str(raw_state))
+    local_checkout = None
+    if os.environ.get('TRACEFOLIO_LOCAL_STATE_CHECKOUT'):
+        raw_checkout = Path(_binding('TRACEFOLIO_LOCAL_STATE_CHECKOUT'))
+        reject_links(raw_checkout)
+        local_checkout = _absolute(str(raw_checkout))
+        validate_state_location(state, local_checkout)
     checkout = Path(__file__).resolve().parents[2]
-    if state.is_relative_to(checkout) or any(p.is_relative_to(checkout) for p in paths):
+    if ((state.is_relative_to(checkout) and local_checkout is None)
+            or any(p.is_relative_to(checkout) or
+                   (local_checkout and p.is_relative_to(local_checkout)) for p in paths)):
         raise TracefolioError("unsafe_root")
     locators = {}
     private_values = [str(state), *(str(p) for p in paths)]
@@ -134,7 +186,7 @@ def load_config_set(config_paths: list[Path]) -> ResolvedConfig:
         json.dumps(sorted(extra_redactions)).encode()).hexdigest()
     policy = PrivacyPolicy(tuple(v for v in private_values if v), epoch)
     return ResolvedConfig(registry, state, paths, locators, policy,
-                          frozenset(v.casefold() for v in identities))
+                          frozenset(v.casefold() for v in identities), local_checkout)
 
 
 def validate_export_path(config: ResolvedConfig, path: Path) -> Path:
@@ -144,7 +196,21 @@ def validate_export_path(config: ResolvedConfig, path: Path) -> Path:
              if any(p.project_id == key[0] and any(s.source_id == key[1] and
                     s.kind != "github_public" for s in p.sources)
                     for p in config.registry.projects)]
-    if target.is_relative_to(checkout) or any(target.is_relative_to(r) for r in roots):
+    reject_links(Path(path))
+    if config.local_state_checkout:
+        validate_state_location(config.state_root, config.local_state_checkout)
+    inside_exports = target.is_relative_to(config.state_root / 'exports')
+    if ((target.is_relative_to(checkout) and not inside_exports)
+            or any(target.is_relative_to(r) for r in roots)):
         raise TracefolioError("unsafe_export")
     return target
+
+
+def validate_proposal_path(config: ResolvedConfig, path: Path) -> Path:
+    reject_links(path)
+    target = _absolute(str(path))
+    if target.is_relative_to(config.state_root / 'proposals'):
+        validate_state_location(config.state_root, config.local_state_checkout)
+        return target
+    return validate_export_path(config, path)
 

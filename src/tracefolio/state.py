@@ -42,6 +42,7 @@ class AnalysisLedger(StrictModel):
     accepted_proposals: dict[str, str] = Field(default_factory=dict)
     analysis_exclusions: dict[str, str] = Field(default_factory=dict)
     reconciliation_sources: list[str] = Field(default_factory=list)
+    review_evidence_by_work: dict[str, list[str]] = Field(default_factory=dict)
 
     def coverage(self):
         sources = [s.model_copy(deep=True) for state in self.sources.values()
@@ -114,15 +115,16 @@ class StateStore:
         self.root = config.state_root
 
     @classmethod
-    def open(cls, config):
-        secure_private_root(config.state_root)
+    def open(cls, config, *, read_only=False):
+        if not read_only:
+            secure_private_root(config.state_root)
         store = cls(config)
         policy = store._path("policy.json")
         expected = {"privacy_policy": config.policy.epoch}
         if policy.exists() and store._read_json(policy) != expected:
             raise TracefolioError("privacy_policy_changed",
                                   "Use a new private state directory for the changed policy.")
-        if not policy.exists():
+        if not policy.exists() and not read_only:
             store._atomic_json(policy, expected)
         return store
 
@@ -161,8 +163,9 @@ class StateStore:
                 temp.unlink()
 
     @contextmanager
-    def lock(self, project_id):
+    def lock(self, project_id, *, migration_token=None):
         logical_id(project_id)
+        self._check_writer(migration_token)
         path = self._path("locks", project_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         try:
@@ -170,9 +173,24 @@ class StateStore:
         except FileExistsError:
             raise TracefolioError("project_locked", "Another writer owns this project lock.", 3) from None
         try:
+            self._check_writer(migration_token)
+            if migration_token:
+                self._atomic_json(path / 'owner.json',
+                                  {'token': migration_token, 'pid': os.getpid()})
             yield
         finally:
+            if migration_token and (path / 'owner.json').exists():
+                (path / 'owner.json').unlink()
             path.rmdir()
+
+    def _check_writer(self, migration_token=None):
+        if self._path('retired.json').exists():
+            raise TracefolioError('state_retired', exit_code=3)
+        barrier = self.root / '.migration.json'
+        if barrier.exists():
+            marker = self._read_json(barrier)
+            if not migration_token or marker.get('token') != migration_token:
+                raise TracefolioError('state_migrating', exit_code=3)
 
     def read_state(self, project_id):
         logical_id(project_id)
