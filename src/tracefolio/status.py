@@ -5,10 +5,10 @@ from .errors import TracefolioError
 
 
 def inspect_project(store, route) -> dict:
-    result = dict(project_id=route.project_id, generation_id=None, coverage_state=None,
-                  pending_evidence_count=0, invalidated_work_ids=[],
-                  reconciliation_source_ids=[], missing_work_ids=[], limitations=[],
-                  analysis_action='disabled' if not route.enabled else 'missing', reasons=[])
+    result = {'project_id': route.project_id, 'generation_id': None, 'coverage_state': None,
+                  'pending_evidence_count': 0, 'invalidated_work_ids': [],
+                  'reconciliation_source_ids': [], 'missing_work_ids': [], 'limitations': [],
+                  'analysis_action': 'disabled' if not route.enabled else 'missing', 'reasons': []}
     if not route.enabled:
         return result
     try:

@@ -18,5 +18,6 @@ dist/
 state/
 packets/
 exports/
+/.tracefolio-local/
 !examples/routes.example.json
 

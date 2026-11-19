@@ -50,6 +50,7 @@ def test_collection_report_separates_existing_backlog(workspace):
 
 def test_target_work_does_not_consume_unrelated_pending(workspace):
     from test_proposals import proposal_for, write_proposal
+
     from tracefolio.proposals import apply_proposal
     cfg, source, path = workspace
     collect_projects(cfg, ['demo'])
