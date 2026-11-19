@@ -69,6 +69,9 @@ def create_packet(store: StateStore, project_id: str, *, work_id=None) -> Packet
         if not ledger.evidence_ids and not configured:
             return PacketResult("no_evidence")
         candidates = list(ledger.pending_analysis)
+        for key in ([work_id] if work_id else ledger.invalidated_work_ids):
+            candidates.extend(ref for ref in ledger.review_evidence_by_work.get(key, [])
+                              if ref not in candidates)
         selected, selected_works = {}, {}
         work_refs = {key: work_evidence_refs(work) for key, work in previous.items()}
         if work_id:

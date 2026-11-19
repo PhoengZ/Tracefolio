@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from .contracts.common import Coverage, SourceCoverage
 from .contracts.evidence import CollectionManifest, SourceCursor
 from .errors import TracefolioError
+from .privacy import path_allowed
 from .sources.base import digest
 from .sources.github_public import GitHubPublicProvider
 from .sources.local_directory import LocalDirectoryProvider
@@ -84,11 +85,16 @@ def collect_projects(config, project_ids, *, providers=None, mode=None):
                 revisited_count = 0
                 for source in project.sources:
                     req = store.source_request(project_id, source.source_id)
-                    if mode in {"commits", "snapshot"}:
-                        req.source = req.source.model_copy(update={"collection_mode": mode})
                     fingerprint = source_fingerprint(config, project, source)
                     old = ledger.sources.get(source.source_id)
                     previous = old.cursor if old and old.fingerprint == fingerprint else None
+                    remembered = (previous.collection_mode or
+                                  ('snapshot' if previous.inventory or previous.baseline else None)
+                                  if previous else None)
+                    effective_mode = mode or remembered or source.collection_mode
+                    req.source = req.source.model_copy(update={'collection_mode': effective_mode})
+                    if remembered and effective_mode != remembered:
+                        previous = None
                     if old and previous is None:
                         changed_sources.add(source.source_id)
                     try:
@@ -102,6 +108,7 @@ def collect_projects(config, project_ids, *, providers=None, mode=None):
                                         and store.read_evidence(eid).origin == "git_commit")
                             ]
                         result.cursor.fingerprint = fingerprint
+                        result.cursor.collection_mode = effective_mode
                         ledger.sources[source.source_id] = SourceState(
                             cursor=result.cursor, coverage=result.coverage, fingerprint=fingerprint)
                         changed_paths.update((source.source_id, path)
@@ -143,12 +150,27 @@ def collect_projects(config, project_ids, *, providers=None, mode=None):
                     if ledger.route_fingerprint not in valid_project_fingerprints(config, project):
                         invalidated.update(w.work_id for w in generation.works)
                     for work in generation.works:
+                        relevant = set()
                         for ref in work_evidence_refs(work):
                             old_record = store.read_evidence(ref)
+                            relevant.add((old_record.source_id, old_record.source_relative_path))
                             if (old_record.source_id in changed_sources
                                     or (old_record.source_id, old_record.source_relative_path)
                                     in changed_paths):
                                 invalidated.add(work.work_id)
+                        for source_id, path in changed_paths:
+                            if any(source.source_id == source_id and
+                                   any(unit.work_id == work.work_id and path_allowed(
+                                       path, unit.include_paths, []) for unit in source.work_units)
+                                   for source in project.sources):
+                                relevant.add((source_id, path))
+                                invalidated.add(work.work_id)
+                        if work.work_id in invalidated:
+                            refs = ledger.review_evidence_by_work.setdefault(work.work_id, [])
+                            for eid in ledger.pending_analysis:
+                                rec = store.read_evidence(eid)
+                                if (rec.source_id, rec.source_relative_path) in relevant and eid not in refs:
+                                    refs.append(eid)
                 ledger.invalidated_work_ids = sorted(invalidated)
                 ledger.route_fingerprint = project_fingerprint(config, project)
                 if _meaningful(ledger) != before:

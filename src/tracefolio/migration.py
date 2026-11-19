@@ -4,12 +4,13 @@ import base64
 import hashlib
 import json
 import os
+import re
 import shutil
 import uuid
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
-from .contracts.evidence import EvidenceRecord
+from .contracts.evidence import CollectionManifest
 from .contracts.knowledge import ProjectRecord, WorkRecord
 from .errors import TracefolioError
 from .investigation import validate_packet
@@ -21,9 +22,19 @@ from .private_config import (
     validate_ignored_path,
     validate_state_location,
 )
+from .sources.base import digest
 from .state import StateStore, logical_id, work_evidence_refs
 
 CONTROL = {'.migration.json', 'retired.json'}
+
+
+def reject_tree_links(root):
+    reject_links(root)
+    def unreadable(error):
+        raise TracefolioError('migration_unreadable', exit_code=4) from None
+    for current, directories, files in os.walk(root, followlinks=False, onerror=unreadable):
+        for name in [*directories, *files]:
+            reject_links(Path(current) / name)
 
 
 def file_manifest(root: Path) -> dict:
@@ -32,13 +43,20 @@ def file_manifest(root: Path) -> dict:
     files = {}
     if not root.exists():
         return files
-    for current, directories, names in os.walk(root, followlinks=False):
+    def unreadable(error):
+        raise TracefolioError('migration_unreadable', exit_code=4) from None
+    for current, directories, names in os.walk(root, followlinks=False, onerror=unreadable):
         current = Path(current)
         for name in [*directories, *names]:
             reject_links(current / name)
-        directories[:] = [d for d in directories if d != 'locks']
+        if current == root:
+            directories[:] = [d for d in directories if d != 'locks']
         for name in names:
-            if name in CONTROL or '.tmp-' in name:
+            relative = (current / name).relative_to(root)
+            if current == root and name in CONTROL:
+                continue
+            if (relative.parts[0] in {'evidence', 'collections', 'projects', 'packets'} and
+                    re.fullmatch(r'.+\.json\.tmp-[0-9a-f]{32}', name)):
                 continue
             path = current / name
             if not path.is_file():
@@ -50,19 +68,50 @@ def file_manifest(root: Path) -> dict:
 def validate_contents(store):
     """Check immutable evidence, packets, generations and all referenced records."""
     checked = set()
+    packets = {}
+    collections = {}
+    policy = store._read_json(store.root / 'policy.json')
+    if policy != {'privacy_policy': store.config.policy.epoch}:
+        raise TracefolioError('privacy_policy_changed')
     def check_evidence(ref):
         if ref not in checked:
             store.read_evidence(ref)
             checked.add(ref)
+    def check_packet(packet_id):
+        if packet_id not in packets:
+            packet = store.read_packet(logical_id(packet_id))
+            try:
+                validate_packet(packet)
+            except TracefolioError:
+                raw = store._read_json(store.root / 'packets' / packet_id / 'packet.json')
+                missing = set(type(packet).model_fields) - set(raw)
+                raw_digest = digest({k: v for k, v in raw.items()
+                                     if k not in {'packet_id', 'packet_digest'}})
+                if (not missing or not missing <= {'semantic_map', 'evidence_aliases'} or
+                        raw_digest != raw['packet_digest'] or
+                        packet_id != 'packet-' + raw_digest[:24]):
+                    raise TracefolioError('packet_integrity') from None
+            for ref in packet.allowed_evidence_ids:
+                check_evidence(ref)
+            packets[packet_id] = packet.project_id
+        return packets[packet_id]
+    def check_collection(collection_id):
+        if collection_id not in collections:
+            collection = CollectionManifest.model_validate(store._read_json(
+                store.root / 'collections' / (logical_id(collection_id) + '.json')))
+            if collection.collection_id != collection_id:
+                raise TracefolioError('state_integrity')
+            for ref in collection.evidence_ids:
+                check_evidence(ref)
+            collections[collection_id] = collection.project_id
+        return collections[collection_id]
     for path in (store.root / 'evidence').glob('*.json'):
         # read_evidence performs canonical hash validation.
-        EvidenceRecord.model_validate(store.read_evidence(path.stem).model_dump())
-        checked.add(path.stem)
+        check_evidence(path.stem)
     for path in (store.root / 'packets').glob('*/packet.json'):
-        packet = store.read_packet(path.parent.name)
-        validate_packet(packet)
-        for ref in packet.allowed_evidence_ids:
-            check_evidence(ref)
+        check_packet(path.parent.name)
+    for path in (store.root / 'collections').glob('*.json'):
+        check_collection(path.stem)
     for path in (store.root / 'projects').glob('*/generations/*/project.json'):
         project = ProjectRecord.model_validate(store._read_json(path))
         for ref in project.evidence_ids:
@@ -74,6 +123,12 @@ def validate_contents(store):
                 raise TracefolioError('state_integrity')
             for ref in work_evidence_refs(work):
                 check_evidence(ref)
+            for packet_id in work.provenance.packet_ids:
+                if check_packet(packet_id) != project.project_id:
+                    raise TracefolioError('state_integrity')
+            for collection_id in work.provenance.collection_ids:
+                if check_collection(collection_id) != project.project_id:
+                    raise TracefolioError('state_integrity')
     for project_dir in (store.root / 'projects').glob('*'):
         if project_dir.is_dir():
             ledger = store.read_state(project_dir.name)
@@ -107,9 +162,15 @@ def bound_config(data):
 
 def atomic_bytes(path: Path, payload: bytes):
     reject_links(path)
-    temp = path.with_name(path.name + '.tmp-' + uuid.uuid4().hex)
+    private_parent = (path.parent / '.tracefolio-local'
+                      if path.name == 'bindings.local.json' else path.parent)
+    if private_parent.exists():
+        reject_tree_links(private_parent)
+    secure_private_root(private_parent)
+    temp = private_parent / (path.name + '.tmp-' + uuid.uuid4().hex)
     try:
-        with temp.open('xb') as handle:
+        fd = os.open(temp, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        with os.fdopen(fd, 'wb') as handle:
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
@@ -157,6 +218,37 @@ def _barrier(store, journal):
         raise TracefolioError('state_migrating', exit_code=3) from None
 
 
+@contextmanager
+def migration_guard(parent):
+    """An OS-released exclusive lock serializes migrators and recovery owners."""
+    if parent.exists():
+        reject_tree_links(parent)
+    secure_private_root(parent)
+    with (parent / 'migration.lock').open('a+b') as handle:
+        handle.seek(0, os.SEEK_END)
+        if not handle.tell():
+            handle.write(b'0')
+            handle.flush()
+        handle.seek(0)
+        try:
+            if os.name == 'nt':
+                import msvcrt
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            raise TracefolioError('migration_owner_running', exit_code=3) from None
+        try:
+            yield
+        finally:
+            handle.seek(0)
+            if os.name == 'nt':
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
 def _remove_owned(path, token):
     if path.exists() and json.loads(path.read_bytes()).get('token') == token:
         path.unlink()
@@ -167,6 +259,7 @@ def _copy_and_activate(config, checkout, bindings_path, destination, journal, jo
     token = journal['token']
     with ExitStack() as stack:
         ids = {p.project_id for p in config.registry.projects}
+        ids.add('export-writer')
         ids.update(p.name for p in (store.root / 'projects').glob('*') if p.is_dir())
         for pid in sorted(ids):
             stack.enter_context(store.lock(pid, migration_token=token))
@@ -193,6 +286,7 @@ def _copy_and_activate(config, checkout, bindings_path, destination, journal, jo
             staging.rename(destination)
         if file_manifest(destination) != manifest:
             raise TracefolioError('migration_destination_changed')
+        _remove_owned(destination / 'retired.json', token)
         journal['phase'] = 'verified'
         store._atomic_json(journal_path, journal)
         # New writers cannot target the old root after the barrier is released.
@@ -208,7 +302,7 @@ def _copy_and_activate(config, checkout, bindings_path, destination, journal, jo
     return {'status': 'migrated', 'file_count': len(manifest), 'digest_match': True}
 
 
-def migrate_state(config, checkout: Path, bindings_path: Path, *, dry_run=False) -> dict:
+def _migrate_state(config, checkout: Path, bindings_path: Path, *, dry_run=False) -> dict:
     checkout, bindings_path, destination = _locations(checkout, bindings_path)
     reject_links(config.state_root)
     data = json.loads(bindings_path.read_bytes())
@@ -234,9 +328,9 @@ def migrate_state(config, checkout: Path, bindings_path: Path, *, dry_run=False)
                'source': str(config.state_root), 'destination': str(destination),
                'bindings': str(bindings_path), 'manifest': manifest,
                'binding_backup': base64.b64encode(bindings_path.read_bytes()).decode('ascii')}
-    _barrier(store, journal)
     try:
         store._atomic_json(journal_path, journal)
+        _barrier(store, journal)
         return _copy_and_activate(config, checkout, bindings_path, destination, journal, journal_path)
     except Exception as error:
         atomic_bytes(bindings_path, base64.b64decode(journal['binding_backup']))
@@ -247,16 +341,33 @@ def migrate_state(config, checkout: Path, bindings_path: Path, *, dry_run=False)
         raise TracefolioError('migration_failed', exit_code=4) from None
 
 
+def migrate_state(config, checkout: Path, bindings_path: Path, *, dry_run=False) -> dict:
+    if dry_run:
+        return _migrate_state(config, checkout, bindings_path, dry_run=True)
+    checkout, bindings_path, destination = _locations(checkout, bindings_path)
+    with migration_guard(destination.parent):
+        return _migrate_state(config, checkout, bindings_path)
+
+
 def _owner_alive(pid):
     if pid <= 0:
         return False
     if os.name == 'nt':
         import ctypes
-        handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)
+        from ctypes import wintypes
+        kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel.OpenProcess.restype = wintypes.HANDLE
+        kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        handle = kernel.OpenProcess(0x1000, False, pid)
         if handle:
-            ctypes.windll.kernel32.CloseHandle(handle)
-            return True
-        return ctypes.windll.kernel32.GetLastError() != 87  # access denied is not dead
+            code = wintypes.DWORD()
+            try:
+                return not kernel.GetExitCodeProcess(handle, ctypes.byref(code)) or code.value == 259
+            finally:
+                kernel.CloseHandle(handle)
+        return ctypes.get_last_error() != 87
     try:
         os.kill(pid, 0)
         return True
@@ -266,35 +377,73 @@ def _owner_alive(pid):
         return True
 
 
-def recover_migration(config, checkout, bindings_path, *, mode):
+def _recover_migration(config, checkout, bindings_path, *, mode):
     checkout, bindings_path, destination = _locations(checkout, bindings_path)
     journal_path = destination.parent / 'migration.json'
+    reject_links(journal_path)
     journal = json.loads(journal_path.read_bytes())
     if (journal['destination'] != str(destination) or journal['bindings'] != str(bindings_path)
-            or mode not in {'resume', 'rollback'}):
+            or mode not in {'resume', 'rollback'} or
+            not re.fullmatch('[0-9a-f]{32}', journal['token'])):
         raise TracefolioError('migration_binding_mismatch')
     if _owner_alive(journal['pid']):
         raise TracefolioError('migration_owner_running', exit_code=3)
     original = base64.b64decode(journal['binding_backup'], validate=True)
     source_config = bound_config(json.loads(original))
-    if str(source_config.state_root) != journal['source']:
+    if (str(source_config.state_root) != journal['source'] or
+            config.config_paths != source_config.config_paths or
+            config.state_root not in {source_config.state_root, destination}):
         raise TracefolioError('migration_binding_mismatch')
     store = StateStore(source_config)
     barrier = store.root / '.migration.json'
-    reject_links(journal_path)
+    if journal['phase'] == 'activated' and not barrier.exists():
+        raise TracefolioError('migration_already_completed', exit_code=3)
     if barrier.exists() and store._read_json(barrier).get('token') != journal['token']:
         raise TracefolioError('state_migrating', exit_code=3)
     journal['pid'] = os.getpid()
+    store._atomic_json(journal_path, journal)
     if not barrier.exists():
         _barrier(store, journal)
+    # Hard-killed Python processes cannot run lock-directory finally blocks.
+    for lock in (store.root / 'locks').glob('*'):
+        reject_links(lock)
+        owner = lock / 'owner.json'
+        if (owner.exists() and store._read_json(owner).get('token') == journal['token']
+                and {p.name for p in lock.iterdir()} == {'owner.json'}):
+            owner.unlink()
+            lock.rmdir()
     if mode == 'rollback':
-        atomic_bytes(bindings_path, original)
-        _remove_owned(store.root / 'retired.json', journal['token'])
-        _remove_owned(barrier, journal['token'])
-        journal['phase'] = 'rolled_back'
-        store._atomic_json(journal_path, journal)
+        with ExitStack() as locks:
+            if destination.exists():
+                from dataclasses import replace
+                target_store = StateStore(replace(source_config, state_root=destination))
+                _barrier(target_store, journal)
+                try:
+                    ids = {p.name for p in (destination / 'projects').glob('*') if p.is_dir()}
+                    ids.add('export-writer')
+                    for pid in sorted(ids):
+                        locks.enter_context(target_store.lock(pid, migration_token=journal['token']))
+                    if file_manifest(destination) != journal['manifest']:
+                        raise TracefolioError('migration_destination_changed')
+                    atomic_bytes(bindings_path, original)
+                    target_store._atomic_json(destination / 'retired.json',
+                                              {'token': journal['token']})
+                finally:
+                    _remove_owned(destination / '.migration.json', journal['token'])
+            else:
+                atomic_bytes(bindings_path, original)
+            _remove_owned(store.root / 'retired.json', journal['token'])
+            _remove_owned(barrier, journal['token'])
+            journal['phase'] = 'rolled_back'
+            store._atomic_json(journal_path, journal)
         return {'status': 'rolled_back'}
     _remove_owned(store.root / 'retired.json', journal['token'])
     store._atomic_json(journal_path, journal)
     return _copy_and_activate(source_config, checkout, bindings_path, destination,
                               journal, journal_path)
+
+
+def recover_migration(config, checkout, bindings_path, *, mode):
+    checkout, bindings_path, destination = _locations(checkout, bindings_path)
+    with migration_guard(destination.parent):
+        return _recover_migration(config, checkout, bindings_path, mode=mode)

@@ -4,29 +4,12 @@ import subprocess
 import sys
 
 import pytest
-from test_local_state import git
-from test_portfolio_cli import publish_demo
 
 from tracefolio.collection import collect_projects
 from tracefolio.errors import TracefolioError
 from tracefolio.migration import migrate_state, recover_migration
 from tracefolio.private_config import load_config
 from tracefolio.state import StateStore
-
-
-@pytest.fixture
-def migration_setup(knowledge_workspace, tmp_path):
-    cfg, source, config_path = knowledge_workspace
-    store = publish_demo(cfg, config_path.parent)
-    checkout = tmp_path / 'checkout'
-    checkout.mkdir()
-    git(checkout, 'init', '-q')
-    checkout.joinpath('.gitignore').write_text('/.tracefolio-local/\n/bindings.local.json\n')
-    bindings = checkout / 'bindings.local.json'
-    bindings.write_text(json.dumps({'TRACEFOLIO_CONFIG': str(config_path),
-                                   'TRACEFOLIO_STATE_DIR': str(cfg.state_root),
-                                   'TRACEFOLIO_DEMO_ROOT': str(source)}))
-    return cfg, store, checkout, bindings
 
 
 def durable(root):

@@ -94,7 +94,8 @@ def main(argv=None) -> int:
             result = collect_projects(config, ids, providers=providers, mode=args.mode)
             emit(result.as_dict())
             return 3 if result.partial else 0
-        store = StateStore.open(config)
+        read_only = args.command == 'status' or (args.command == 'summarize' and not args.out)
+        store = StateStore.open(config, read_only=read_only)
         if args.command in {"summarize", "status"}:
             registry = config.registry
             if not args.all:

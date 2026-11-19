@@ -68,7 +68,8 @@ def export_portfolio(store, snapshot, path):
     export_root = store.root.resolve() / "exports"
     if not target.is_relative_to(export_root) or target == export_root:
         raise TracefolioError("unsafe_export", "Export must be inside the private state's exports directory.")
-    store._atomic_json(target, snapshot.model_dump(mode="json"))
+    with store.lock('export-writer'):
+        store._atomic_json(target, snapshot.model_dump(mode="json"))
 
 
 def brief_portfolio(snapshot):

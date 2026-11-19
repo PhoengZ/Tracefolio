@@ -49,7 +49,7 @@ def git_output(checkout: Path, *args) -> bytes:
 def validate_ignored_path(checkout: Path, path: Path) -> None:
     reject_links(path)
     relative = path.relative_to(checkout).as_posix()
-    probe = relative + '/ignore-probe' if not path.suffix else relative
+    probe = relative + '/' if not path.suffix else relative
     git_output(checkout, 'check-ignore', '--no-index', '--quiet', '--', probe)
     if git_output(checkout, 'ls-files', '--cached', '-z', '--', relative):
         raise TracefolioError('unsafe_root')
@@ -204,4 +204,13 @@ def validate_export_path(config: ResolvedConfig, path: Path) -> Path:
             or any(target.is_relative_to(r) for r in roots)):
         raise TracefolioError("unsafe_export")
     return target
+
+
+def validate_proposal_path(config: ResolvedConfig, path: Path) -> Path:
+    reject_links(path)
+    target = _absolute(str(path))
+    if target.is_relative_to(config.state_root / 'proposals'):
+        validate_state_location(config.state_root, config.local_state_checkout)
+        return target
+    return validate_export_path(config, path)
 
