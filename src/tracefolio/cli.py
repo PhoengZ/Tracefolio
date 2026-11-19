@@ -5,13 +5,14 @@ import sys
 from .collection import collect_projects
 from .errors import TracefolioError
 from .investigation import create_packet, extend_packet
-from .portfolio import export_portfolio, summarize_portfolio
+from .portfolio import brief_portfolio, export_portfolio, summarize_portfolio
 from .private_config import load_config_set, selected_config_paths
 from .proposals import apply_proposal
 from .sources.base import ContextRequest
 from .sources.github_plugin_transport import GitHubPluginTransport
 from .sources.github_public import GitHubPublicProvider
 from .state import StateStore
+from .status import inspect_project
 
 
 class SafeParser(argparse.ArgumentParser):
@@ -50,6 +51,11 @@ def parser():
     select.add_argument("--project", action="append")
     summary.add_argument("--format", choices=["json"], default="json")
     summary.add_argument("--out")
+    summary.add_argument("--view", choices=["brief", "full"], default="full")
+    status = commands.add_parser("status")
+    select = status.add_mutually_exclusive_group(required=True)
+    select.add_argument("--all", action="store_true")
+    select.add_argument("--project", action="append")
     return root
 
 
@@ -74,17 +80,22 @@ def main(argv=None) -> int:
             emit(result.as_dict())
             return 3 if result.partial else 0
         store = StateStore.open(config)
-        if args.command == "summarize":
+        if args.command in {"summarize", "status"}:
             registry = config.registry
             if not args.all:
                 if not set(args.project) <= {p.project_id for p in registry.projects}:
                     raise TracefolioError("unknown_project")
                 registry = registry.model_copy(update={"projects": [
                     p for p in registry.projects if p.project_id in args.project]})
+            if args.command == 'status':
+                entries = [inspect_project(store, p) for p in registry.projects]
+                emit({'configured_project_count': len(registry.projects), 'entries': entries})
+                return 3 if any(e['analysis_action'] in {'blocked', 'missing'}
+                                for e in entries) else 0
             result = summarize_portfolio(store, registry)
             if args.out:
                 export_portfolio(store, result, args.out)
-            emit(result.model_dump(mode="json"))
+            emit(brief_portfolio(result) if args.view == 'brief' else result.model_dump(mode="json"))
             return 3 if any(e.status not in {"ready", "disabled"} for e in result.entries) else 0
         if args.command == "apply":
             emit(apply_proposal(store, args.proposal).as_dict())
