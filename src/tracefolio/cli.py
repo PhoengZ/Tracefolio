@@ -1,6 +1,7 @@
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from .collection import collect_projects
 from .errors import TracefolioError
@@ -56,6 +57,13 @@ def parser():
     select = status.add_mutually_exclusive_group(required=True)
     select.add_argument("--all", action="store_true")
     select.add_argument("--project", action="append")
+    state = commands.add_parser('state')
+    migrate = state.add_subparsers(dest='state_command', required=True).add_parser('migrate')
+    migrate.add_argument('--to-checkout', type=Path, required=True)
+    migrate.add_argument('--bindings', type=Path, required=True)
+    mode = migrate.add_mutually_exclusive_group()
+    mode.add_argument('--dry-run', action='store_true')
+    mode.add_argument('--recover', choices=['resume', 'rollback'])
     return root
 
 
@@ -73,6 +81,13 @@ def main(argv=None) -> int:
         if args.command == "config":
             emit({"status": "valid", "configured_project_count": len(config.registry.projects),
                   "enabled_project_count": sum(p.enabled for p in config.registry.projects)})
+            return 0
+        if args.command == 'state':
+            from .migration import migrate_state, recover_migration
+            result = (recover_migration(config, args.to_checkout, args.bindings, mode=args.recover)
+                      if args.recover else migrate_state(config, args.to_checkout, args.bindings,
+                                                        dry_run=args.dry_run))
+            emit(result)
             return 0
         if args.command == "collect":
             ids = [p.project_id for p in config.registry.projects] if args.all else args.project
