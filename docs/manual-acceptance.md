@@ -12,3 +12,13 @@ Automated checks use synthetic data. A configured route is not evidence that eve
 8. Export the portfolio under private state. Inspect every configured project, including partial/pending/error/disabled entries. No endpoint, absolute source path, author email, or credential should appear. Redaction is heuristic: inspect confidential narrative content too.
 
 No email sending, email connection, resume/PDF generation, public publishing, or job application is part of acceptance. Linux portability is verified by CI only after that workflow actually runs; a local Windows pass is not a Linux result.
+
+## Incremental workflow acceptance
+
+- Saved summary: run `summarize --all --view brief`; no provider calls or new packet/proposal/state content writes occur, even for partial entries.
+- Unchanged update: collect in the persisted source mode; new/revisited counts are zero, pending remains empty after prior apply, and packet creation is noop.
+- One-work update: change one synthetic scoped file; analyze with `--work`; unrelated backlog and work revisions survive apply.
+- Rate limit: preserve last-good data, report source limitation and stop; partial/exit 3 does not authorize another route or repeated review.
+- Old backlog: `new_evidence=0` and pending greater than zero are independently visible; ordinary summary does not drain backlog.
+- Missing generation: report missing/pending without inventing work. `status` gives the scheduling reason.
+- Local migration: dry-run changes no bindings/state, successful migration preserves durable-file hashes and IDs, source backup remains, Git tracks no private files, and a stale writer cannot write the retired root. Explicit recovery handles an interrupted owner.
