@@ -83,3 +83,7 @@ Tests use synthetic local repositories and a fake GitHub transport. Windows and 
 Read [security boundaries](docs/security.md), [schemas and state](docs/schema.md), and [manual acceptance](docs/manual-acceptance.md). Private source content may still be confidential after heuristic redaction. Your chosen external harness may transmit packets to its model provider.
 
 Private state can optionally live at the validated Git-ignored `.tracefolio-local/state` location under an explicitly bound checkout. Registries remain external. See [migration and recovery](docs/harness-workflow.md#repository-local-private-state-and-migration).
+
+## Offline work feedback workbench
+
+Open [tools/work-feedback.html](tools/work-feedback.html) directly in a local browser (offline only, no network calls) to review works without inspecting raw JSON by hand. It accepts `.jsonl` files (such as the synthetic [examples/works.example.jsonl](examples/works.example.jsonl)), `summarize --all --format json` / `--view brief` portfolio JSON, individual `works/*.json` files, folder uploads, or pasted JSON/JSONL, and exports structured feedback (`.jsonl` / `.json`) with correctness/ownership verdicts and reasons.

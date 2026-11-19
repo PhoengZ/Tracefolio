@@ -1,0 +1,2219 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tracefolio — Work Feedback Workbench</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --surface: #ffffff;
+      --surface-muted: #f0f2f7;
+      --border: #d9dfe9;
+      --border-strong: #bcc6d6;
+      --text: #141a26;
+      --text-muted: #526077;
+      --accent: #315efb;
+      --accent-soft: #e9efff;
+      --ok: #137a47;
+      --ok-bg: #e7f7ef;
+      --ok-border: #8ad6ae;
+      --danger: #c62839;
+      --danger-bg: #fdecef;
+      --danger-border: #f1a7b0;
+      --warn: #a85d00;
+      --warn-bg: #fff4e3;
+      --warn-border: #f2c480;
+      --edit: #6938c7;
+      --edit-bg: #f3ecff;
+      --edit-border: #c5adf5;
+      --shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+      --radius: 12px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans Thai", "Leelawadee UI", sans-serif;
+    }
+
+    [data-theme="dark"] {
+      --bg: #0f131b;
+      --surface: #171d29;
+      --surface-muted: #1e2636;
+      --border: #2b364c;
+      --border-strong: #3d4d6b;
+      --text: #edf2fb;
+      --text-muted: #9aa8c1;
+      --accent: #6c8eff;
+      --accent-soft: #1d2a4b;
+      --ok: #5be09d;
+      --ok-bg: #112d21;
+      --ok-border: #246346;
+      --danger: #ff7c8b;
+      --danger-bg: #35161d;
+      --danger-border: #762c3a;
+      --warn: #ffb85c;
+      --warn-bg: #332410;
+      --warn-border: #734c1a;
+      --edit: #c19cff;
+      --edit-bg: #261a3d;
+      --edit-border: #5a3c93;
+      --shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .app-shell {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 20px 20px 64px;
+    }
+
+    header.topbar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 1.25rem;
+      letter-spacing: -0.01em;
+    }
+
+    .brand-sub {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+    }
+
+    .privacy-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      background: var(--ok-bg);
+      color: var(--ok);
+      border: 1px solid var(--ok-border);
+      width: fit-content;
+      margin-top: 4px;
+    }
+
+    .toolbar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    button, .btn {
+      font-family: inherit;
+      font-size: 0.86rem;
+      font-weight: 600;
+      padding: 8px 13px;
+      border-radius: 8px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.14s ease, border-color 0.14s ease, transform 0.08s ease;
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--surface-muted);
+    }
+
+    button:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: #ffffff;
+      border-color: var(--accent);
+    }
+
+    button.primary:hover:not(:disabled) {
+      filter: brightness(1.06);
+      background: var(--accent);
+    }
+
+    button.danger-outline {
+      color: var(--danger);
+      border-color: var(--danger-border);
+    }
+
+    button.danger-outline:hover:not(:disabled) {
+      background: var(--danger-bg);
+    }
+
+    .hidden-input {
+      display: none;
+    }
+
+    .dropzone {
+      border: 2px dashed var(--border-strong);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: 20px;
+      text-align: center;
+      margin-bottom: 16px;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .dropzone.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .dropzone.compact {
+      padding: 12px 16px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      text-align: left;
+    }
+
+    .dropzone-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .dropzone-hint {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    .dropzone-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .dropzone.compact .dropzone-buttons {
+      margin-top: 0;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 11px 14px;
+      box-shadow: var(--shadow);
+    }
+
+    .stat-label {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .stat-value {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    .stat-value.ok { color: var(--ok); }
+    .stat-value.danger { color: var(--danger); }
+    .stat-value.warn { color: var(--warn); }
+    .stat-value.edit { color: var(--edit); }
+
+    .progress-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .progress-track {
+      height: 8px;
+      background: var(--surface-muted);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--ok));
+      transition: width 0.2s ease;
+    }
+
+    .filters-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      padding: 12px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 16px;
+    }
+
+    .filters-bar input[type="search"],
+    .filters-bar select {
+      font-family: inherit;
+      font-size: 0.86rem;
+      padding: 7px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border-strong);
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .filters-bar input[type="search"] {
+      flex: 1 1 220px;
+      min-width: 180px;
+    }
+
+    .segmented {
+      display: inline-flex;
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .segmented button {
+      border: none;
+      border-radius: 0;
+      padding: 7px 12px;
+    }
+
+    .segmented button.active {
+      background: var(--accent);
+      color: #ffffff;
+    }
+
+    .toggle-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.83rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .banner {
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      margin-bottom: 14px;
+      display: none;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .banner.visible {
+      display: flex;
+    }
+
+    .banner.warn {
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      color: var(--warn);
+    }
+
+    .banner.info {
+      background: var(--accent-soft);
+      border: 1px solid var(--accent);
+      color: var(--text);
+    }
+
+    .focus-nav {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 14px;
+    }
+
+    .focus-nav.visible {
+      display: flex;
+    }
+
+    .kbd-hint {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .works-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .work-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 5px solid var(--border-strong);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .work-card.verdict-correct { border-left-color: var(--ok); }
+    .work-card.verdict-not_my_work { border-left-color: var(--danger); }
+    .work-card.verdict-misunderstood { border-left-color: var(--warn); }
+    .work-card.verdict-needs_edit { border-left-color: var(--edit); }
+
+    .card-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .card-ids {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--surface-muted);
+      color: var(--text-muted);
+    }
+
+    .pill.mono {
+      font-family: var(--mono);
+      color: var(--text);
+    }
+
+    .pill.project {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .pill.warn {
+      background: var(--warn-bg);
+      border-color: var(--warn-border);
+      color: var(--warn);
+    }
+
+    .pill.ok {
+      background: var(--ok-bg);
+      border-color: var(--ok-border);
+      color: var(--ok);
+    }
+
+    .work-title {
+      margin: 0;
+      font-size: 1.08rem;
+      font-weight: 700;
+    }
+
+    .card-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .section-block {
+      margin-top: 10px;
+    }
+
+    .section-label {
+      font-size: 0.76rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .problem-text {
+      margin: 0;
+      font-size: 0.92rem;
+    }
+
+    .bullet-list {
+      margin: 4px 0 0;
+      padding-left: 20px;
+      font-size: 0.9rem;
+    }
+
+    .bullet-list li {
+      margin-bottom: 3px;
+    }
+
+    .unknowns-box {
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-top: 10px;
+      font-size: 0.86rem;
+    }
+
+    details.extra-details {
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      background: var(--bg);
+    }
+
+    details.extra-details summary {
+      cursor: pointer;
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .claim-item {
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.86rem;
+    }
+
+    .claim-item:last-child {
+      border-bottom: none;
+    }
+
+    .feedback-panel {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .verdict-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .verdict-btn {
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.86rem;
+      font-weight: 600;
+      border: 1px solid var(--border-strong);
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .verdict-btn.active-correct {
+      background: var(--ok-bg);
+      border-color: var(--ok);
+      color: var(--ok);
+    }
+
+    .verdict-btn.active-not_my_work {
+      background: var(--danger-bg);
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    .verdict-btn.active-misunderstood {
+      background: var(--warn-bg);
+      border-color: var(--warn);
+      color: var(--warn);
+    }
+
+    .verdict-btn.active-needs_edit {
+      background: var(--edit-bg);
+      border-color: var(--edit);
+      color: var(--edit);
+    }
+
+    .ownership-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.83rem;
+      color: var(--text-muted);
+      background: var(--surface-muted);
+      padding: 8px 10px;
+      border-radius: 8px;
+    }
+
+    .ownership-btn {
+      padding: 4px 10px;
+      font-size: 0.8rem;
+      border-radius: 999px;
+    }
+
+    .ownership-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+
+    .reason-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .reason-textarea {
+      width: 100%;
+      min-height: 68px;
+      resize: vertical;
+      font-family: inherit;
+      font-size: 0.88rem;
+      padding: 9px 11px;
+      border-radius: 8px;
+      border: 1px solid var(--border-strong);
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .reason-textarea:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+
+    .quick-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .chip-btn {
+      font-size: 0.76rem;
+      font-weight: 500;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+
+    .chip-btn:hover {
+      color: var(--text);
+      border-color: var(--border-strong);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 44px 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-muted);
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 15, 28, 0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 1000;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal-card {
+      width: 100%;
+      max-width: 720px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .modal-card h2 {
+      margin: 0;
+      font-size: 1.05rem;
+    }
+
+    .modal-textarea {
+      width: 100%;
+      min-height: 240px;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border-strong);
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .toast {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      background: var(--text);
+      color: var(--bg);
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 0.86rem;
+      font-weight: 600;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(8px);
+      transition: opacity 0.18s ease, transform 0.18s ease;
+      z-index: 1100;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <h1>Tracefolio — Work Feedback Workbench</h1>
+        <div class="brand-sub">ตรวจสอบและยืนยันผลงานทั้งหมดแบบรวดเร็ว (ทำจริง / ไม่ได้ทำ / ระบบเข้าใจผิด + เหตุผล)</div>
+        <span class="privacy-pill">Offline Only — ข้อมูลอยู่เฉพาะในเครื่องของคุณ ไม่มีการส่งออกเครือข่าย</span>
+      </div>
+      <div class="toolbar-actions">
+        <button id="btn-export-jsonl" class="primary" disabled>Export Feedback (.jsonl)</button>
+        <button id="btn-export-json" disabled>Export (.json)</button>
+        <button id="btn-copy-jsonl" disabled>Copy JSONL</button>
+        <button id="btn-theme" type="button">Theme</button>
+      </div>
+    </header>
+
+    <section id="dropzone" class="dropzone" aria-label="Insert work files">
+      <div>
+        <div class="dropzone-title">Insert ไฟล์ Work หรือ Portfolio (ลากวางไฟล์มาที่นี่ได้)</div>
+        <div class="dropzone-hint">รองรับ .jsonl, portfolio.json (full / brief), อาร์เรย์ของ work หรือเลือกหลายไฟล์ works/*.json พร้อมกัน</div>
+      </div>
+      <div class="dropzone-buttons">
+        <button id="btn-insert-files" class="primary" type="button">+ Insert JSONL / JSON Files</button>
+        <button id="btn-insert-folder" type="button">+ Insert Folder (works/)</button>
+        <button id="btn-paste-open" type="button">Paste JSON / JSONL</button>
+        <button id="btn-import-feedback" type="button">Import Previous Feedback</button>
+        <button id="btn-clear-session" class="danger-outline" type="button">Clear Session</button>
+      </div>
+      <input id="input-files" class="hidden-input" type="file" multiple accept=".json,.jsonl,.ndjson,.txt">
+      <input id="input-folder" class="hidden-input" type="file" webkitdirectory directory multiple>
+      <input id="input-feedback" class="hidden-input" type="file" accept=".json,.jsonl,.ndjson,.txt">
+    </section>
+
+    <div id="status-banner" class="banner" role="status">
+      <div id="status-banner-text"></div>
+      <button id="btn-dismiss-banner" type="button">ปิด</button>
+    </div>
+
+    <section class="stats-grid" aria-label="Review summary">
+      <div class="stat-card">
+        <div class="stat-label">งานทั้งหมด (Total)</div>
+        <div id="stat-total" class="stat-value">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">ตรวจแล้ว (Reviewed)</div>
+        <div id="stat-reviewed" class="stat-value">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">ถูก / ทำจริง (Correct)</div>
+        <div id="stat-correct" class="stat-value ok">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">ผิด: ไม่ได้ทำ (Not Mine)</div>
+        <div id="stat-not-mine" class="stat-value danger">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">ผิด: เข้าใจผิด (Misunderstood)</div>
+        <div id="stat-misunderstood" class="stat-value warn">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">ถูกบางส่วน / ต้องแก้</div>
+        <div id="stat-needs-edit" class="stat-value edit">0</div>
+      </div>
+    </section>
+
+    <section class="progress-wrap" aria-label="Progress">
+      <div class="progress-header">
+        <span id="progress-label">ยังไม่มีรายการที่โหลด</span>
+        <span id="progress-pct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div id="progress-fill" class="progress-fill"></div>
+      </div>
+    </section>
+
+    <section class="filters-bar" aria-label="Filters and view controls">
+      <input id="filter-search" type="search" placeholder="ค้นหา work_id, title, problem, actions...">
+      <select id="filter-project" aria-label="Filter by project">
+        <option value="__all__">ทุกโปรเจกต์ (All Projects)</option>
+      </select>
+      <select id="filter-verdict" aria-label="Filter by verdict">
+        <option value="__all__">ทุกสถานะ Feedback</option>
+        <option value="unreviewed">ยังไม่ตรวจ (Unreviewed)</option>
+        <option value="correct">ถูก — ทำจริง (Correct)</option>
+        <option value="incorrect">ผิดทั้งหมด (All Incorrect)</option>
+        <option value="not_my_work">ผิด — ไม่ได้ทำ (Not My Work)</option>
+        <option value="misunderstood">ผิด — เข้าใจผิด (Misunderstood)</option>
+        <option value="needs_edit">ถูกบางส่วน — ต้องแก้ (Needs Edit)</option>
+      </select>
+      <select id="filter-contribution" aria-label="Filter by existing contribution">
+        <option value="__all__">Contribution ทั้งหมด</option>
+        <option value="self_authored">self_authored</option>
+        <option value="collaborative">collaborative</option>
+        <option value="unverified">unverified</option>
+      </select>
+      <div class="segmented" role="group" aria-label="View mode">
+        <button id="btn-mode-list" class="active" type="button">List Mode</button>
+        <button id="btn-mode-focus" type="button">Focus Mode</button>
+      </div>
+      <label class="toggle-label" title="Export เฉพาะรายการที่ให้ Feedback แล้ว">
+        <input id="chk-export-reviewed-only" type="checkbox" checked>
+        Export เฉพาะที่ตรวจแล้ว
+      </label>
+      <label class="toggle-label" title="บันทึก Draft ชั่วคราวใน Browser localStorage">
+        <input id="chk-autosave" type="checkbox" checked>
+        Auto-save ใน Browser
+      </label>
+    </section>
+
+    <section id="focus-nav" class="focus-nav" aria-label="Focus mode navigation">
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <button id="btn-focus-prev" type="button">← ก่อนหน้า (K)</button>
+        <strong id="focus-counter">0 / 0</strong>
+        <button id="btn-focus-next" type="button">ถัดไป (J) →</button>
+        <button id="btn-focus-next-unreviewed" type="button">ข้ามไปรายการที่ยังไม่ตรวจ (U)</button>
+      </div>
+      <div class="kbd-hint">คีย์ลัด: 1 ถูก | 2 ไม่ได้ทำ | 3 เข้าใจผิด | 4 ต้องแก้ | 0 ล้าง | R ใส่เหตุผล</div>
+    </section>
+
+    <main id="works-container" class="works-list"></main>
+  </div>
+
+  <div id="paste-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="paste-modal-title">
+    <div class="modal-card">
+      <h2 id="paste-modal-title">Paste JSON หรือ JSONL</h2>
+      <div class="dropzone-hint">วางผลลัพธ์จาก `tracefolio summarize --all --view brief --format json`, `portfolio.json`, `WorkRecord`, หรือไฟล์ `.jsonl` ได้โดยตรง</div>
+      <textarea id="paste-textarea" class="modal-textarea" placeholder='{"project_id":"demo-ingestion","work_id":"incremental-sync","title":"..."}'></textarea>
+      <div class="modal-footer">
+        <button id="btn-paste-cancel" type="button">ยกเลิก</button>
+        <button id="btn-paste-submit" class="primary" type="button">Insert ข้อมูล</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script id="tracefolio-feedback-core">
+    (function (root) {
+      "use strict";
+
+      const VERDICT_DEFAULTS = Object.freeze({
+        correct: { is_correct: true, ownership_confirmed: true },
+        not_my_work: { is_correct: false, ownership_confirmed: false },
+        misunderstood: { is_correct: false, ownership_confirmed: null },
+        needs_edit: { is_correct: false, ownership_confirmed: true },
+        unreviewed: { is_correct: null, ownership_confirmed: null }
+      });
+
+      const VALID_VERDICTS = new Set(Object.keys(VERDICT_DEFAULTS));
+
+      function makeWorkKey(projectId, workId) {
+        return String(projectId || "unassigned-project") + "::" + String(workId || "");
+      }
+
+      function inferProjectIdFromPath(sourceLabel) {
+        if (!sourceLabel || typeof sourceLabel !== "string") {
+          return null;
+        }
+        const normalized = sourceLabel.replace(/\\/g, "/");
+        const projectMatch = normalized.match(/(?:^|\/)projects\/([a-z0-9]+(?:-[a-z0-9]+)*)\//i);
+        if (projectMatch) {
+          return projectMatch[1];
+        }
+        return null;
+      }
+
+      function isPlainObject(value) {
+        return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+      }
+
+      function normalizeStringArray(value) {
+        if (!Array.isArray(value)) {
+          return [];
+        }
+        return value.filter((item) => typeof item === "string" && item.trim().length > 0);
+      }
+
+      function normalizeWorkRecord(raw, context) {
+        if (!isPlainObject(raw) || typeof raw.work_id !== "string" || !raw.work_id.trim()) {
+          return null;
+        }
+        const ctx = context || {};
+        const explicitProjectId = typeof raw.project_id === "string" && raw.project_id.trim()
+          ? raw.project_id.trim()
+          : (typeof ctx.project_id === "string" && ctx.project_id.trim() ? ctx.project_id.trim() : null);
+        const inferredProjectId = explicitProjectId ? null : inferProjectIdFromPath(ctx.sourceLabel);
+        const projectId = explicitProjectId || inferredProjectId || "unassigned-project";
+
+        const skills = Array.isArray(raw.skills)
+          ? raw.skills.map((s) => (isPlainObject(s)
+              ? { name: String(s.name || ""), evidence_refs: normalizeStringArray(s.evidence_refs) }
+              : { name: String(s || ""), evidence_refs: [] })).filter((s) => s.name)
+          : [];
+
+        const claims = Array.isArray(raw.claims)
+          ? raw.claims.filter(isPlainObject).map((c) => ({
+              claim_id: String(c.claim_id || ""),
+              statement: String(c.statement || ""),
+              status: String(c.status || "observed"),
+              evidence_refs: normalizeStringArray(c.evidence_refs),
+              metric: isPlainObject(c.metric) ? c.metric : null
+            }))
+          : [];
+
+        const provenance = isPlainObject(raw.provenance)
+          ? {
+              source_ids: normalizeStringArray(raw.provenance.source_ids),
+              evidence_refs: normalizeStringArray(raw.provenance.evidence_refs),
+              collection_ids: normalizeStringArray(raw.provenance.collection_ids),
+              packet_ids: normalizeStringArray(raw.provenance.packet_ids)
+            }
+          : { source_ids: [], evidence_refs: [], collection_ids: [], packet_ids: [] };
+
+        return {
+          key: makeWorkKey(projectId, raw.work_id.trim()),
+          project_id: projectId,
+          project_id_inferred: !explicitProjectId,
+          project_title: ctx.project_title || null,
+          project_status: ctx.project_status || null,
+          work_id: raw.work_id.trim(),
+          title: typeof raw.title === "string" && raw.title.trim() ? raw.title.trim() : raw.work_id.trim(),
+          problem: typeof raw.problem === "string" && raw.problem.trim() ? raw.problem.trim() : null,
+          actions: normalizeStringArray(raw.actions),
+          skills: skills,
+          claims: claims,
+          contribution: typeof raw.contribution === "string" ? raw.contribution : "unverified",
+          implementation_status: typeof raw.implementation_status === "string" ? raw.implementation_status : "unknown",
+          analysis_status: typeof raw.analysis_status === "string" ? raw.analysis_status : "partial",
+          review_status: typeof raw.review_status === "string" ? raw.review_status : "unreviewed",
+          unknowns: normalizeStringArray(raw.unknowns),
+          provenance: provenance,
+          record_revision: typeof raw.record_revision === "number" ? raw.record_revision : null,
+          generated_at: typeof raw.generated_at === "string" ? raw.generated_at : null,
+          source_label: ctx.sourceLabel || null
+        };
+      }
+
+      function extractWorksFromObject(obj, sourceLabel, outWorks, warnings) {
+        if (Array.isArray(obj)) {
+          for (let i = 0; i < obj.length; i += 1) {
+            extractWorksFromObject(obj[i], sourceLabel, outWorks, warnings);
+          }
+          return;
+        }
+        if (!isPlainObject(obj)) {
+          warnings.push((sourceLabel || "input") + ": skipped non-object JSON value");
+          return;
+        }
+
+        // Tracefolio PortfolioSnapshot (full or brief)
+        if (Array.isArray(obj.entries)) {
+          for (const entry of obj.entries) {
+            if (!isPlainObject(entry)) {
+              continue;
+            }
+            const entryWorks = Array.isArray(entry.works) ? entry.works : [];
+            const projectTitle = isPlainObject(entry.project) && typeof entry.project.title === "string"
+              ? entry.project.title
+              : (typeof entry.title === "string" ? entry.title : null);
+            for (const rawWork of entryWorks) {
+              const normalized = normalizeWorkRecord(rawWork, {
+                project_id: entry.project_id,
+                project_title: projectTitle,
+                project_status: typeof entry.status === "string" ? entry.status : null,
+                sourceLabel: sourceLabel
+              });
+              if (normalized) {
+                outWorks.push(normalized);
+              }
+            }
+          }
+          return;
+        }
+
+        // Single PortfolioEntry
+        if (typeof obj.project_id === "string" && Array.isArray(obj.works)) {
+          const projectTitle = isPlainObject(obj.project) && typeof obj.project.title === "string"
+            ? obj.project.title
+            : (typeof obj.title === "string" ? obj.title : null);
+          for (const rawWork of obj.works) {
+            const normalized = normalizeWorkRecord(rawWork, {
+              project_id: obj.project_id,
+              project_title: projectTitle,
+              project_status: typeof obj.status === "string" ? obj.status : null,
+              sourceLabel: sourceLabel
+            });
+            if (normalized) {
+              outWorks.push(normalized);
+            }
+          }
+          return;
+        }
+
+        // Detect exported feedback bundle accidentally dropped into work import
+        if (Array.isArray(obj.items) && obj.items.some((it) => isPlainObject(it) && "verdict" in it)) {
+          warnings.push((sourceLabel || "input") + ": looks like a Feedback export file. Use 'Import Previous Feedback' instead.");
+          return;
+        }
+
+        // Single WorkRecord (or brief work item)
+        if (typeof obj.work_id === "string" && !("verdict" in obj)) {
+          const normalized = normalizeWorkRecord(obj, { sourceLabel: sourceLabel });
+          if (normalized) {
+            outWorks.push(normalized);
+          }
+          return;
+        }
+
+        if ("verdict" in obj && typeof obj.work_id === "string") {
+          warnings.push((sourceLabel || "input") + ": detected feedback record ('" + obj.work_id + "'). Use 'Import Previous Feedback' to restore verdicts.");
+          return;
+        }
+
+        warnings.push((sourceLabel || "input") + ": ignored unrecognized JSON object (missing work_id / entries)");
+      }
+
+      function parseWorksText(text, sourceLabel) {
+        const works = [];
+        const warnings = [];
+        const trimmed = typeof text === "string" ? text.trim() : "";
+        if (!trimmed) {
+          warnings.push((sourceLabel || "input") + ": file is empty");
+          return { works: works, warnings: warnings };
+        }
+
+        // Try whole-document JSON first
+        try {
+          const parsed = JSON.parse(trimmed);
+          extractWorksFromObject(parsed, sourceLabel, works, warnings);
+          return { works: works, warnings: warnings };
+        } catch (_wholeError) {
+          // Fall through to JSONL line-by-line parsing
+        }
+
+        const lines = trimmed.split(/\r?\n/);
+        for (let idx = 0; idx < lines.length; idx += 1) {
+          const line = lines[idx].trim();
+          if (!line) {
+            continue;
+          }
+          try {
+            const parsedLine = JSON.parse(line);
+            extractWorksFromObject(parsedLine, (sourceLabel || "jsonl") + ":" + (idx + 1), works, warnings);
+          } catch (_lineError) {
+            warnings.push((sourceLabel || "jsonl") + ":" + (idx + 1) + ": invalid JSON line");
+          }
+        }
+        return { works: works, warnings: warnings };
+      }
+
+      function mergeWorks(existingWorks, incomingWorks) {
+        const map = new Map();
+        for (const item of existingWorks || []) {
+          map.set(item.key, item);
+        }
+        let added = 0;
+        let updated = 0;
+        for (const item of incomingWorks || []) {
+          if (map.has(item.key)) {
+            updated += 1;
+          } else {
+            added += 1;
+          }
+          map.set(item.key, item);
+        }
+        return {
+          works: Array.from(map.values()),
+          added: added,
+          updated: updated
+        };
+      }
+
+      function createFeedbackEntry(verdict, reason, ownershipOverride, timestamp) {
+        const safeVerdict = VALID_VERDICTS.has(verdict) ? verdict : "unreviewed";
+        const defaults = VERDICT_DEFAULTS[safeVerdict];
+        let ownership = defaults.ownership_confirmed;
+        if (safeVerdict === "misunderstood" && (ownershipOverride === true || ownershipOverride === false || ownershipOverride === null)) {
+          ownership = ownershipOverride;
+        }
+        return {
+          verdict: safeVerdict,
+          is_correct: defaults.is_correct,
+          ownership_confirmed: ownership,
+          reason: typeof reason === "string" ? reason : "",
+          reviewed_at: safeVerdict === "unreviewed" ? null : (timestamp || new Date().toISOString())
+        };
+      }
+
+      function parseFeedbackText(text) {
+        const records = [];
+        const warnings = [];
+        const trimmed = typeof text === "string" ? text.trim() : "";
+        if (!trimmed) {
+          warnings.push("Feedback input is empty");
+          return { records: records, warnings: warnings };
+        }
+
+        function collect(item, label) {
+          if (Array.isArray(item)) {
+            item.forEach((el, i) => collect(el, label + "[" + i + "]"));
+            return;
+          }
+          if (!isPlainObject(item)) {
+            warnings.push(label + ": non-object entry skipped");
+            return;
+          }
+          if (Array.isArray(item.items)) {
+            collect(item.items, label + ".items");
+            return;
+          }
+          if (typeof item.work_id !== "string" || !item.work_id.trim()) {
+            warnings.push(label + ": missing work_id");
+            return;
+          }
+          let verdict = typeof item.verdict === "string" && VALID_VERDICTS.has(item.verdict)
+            ? item.verdict
+            : (item.is_correct === true ? "correct" : (item.is_correct === false ? "misunderstood" : "unreviewed"));
+          const entry = createFeedbackEntry(
+            verdict,
+            typeof item.reason === "string" ? item.reason : "",
+            item.ownership_confirmed,
+            typeof item.reviewed_at === "string" ? item.reviewed_at : null
+          );
+          records.push({
+            project_id: typeof item.project_id === "string" && item.project_id.trim() ? item.project_id.trim() : null,
+            work_id: item.work_id.trim(),
+            feedback: entry
+          });
+        }
+
+        try {
+          collect(JSON.parse(trimmed), "feedback");
+          return { records: records, warnings: warnings };
+        } catch (_wholeErr) {
+          // Parse as JSONL
+        }
+
+        const lines = trimmed.split(/\r?\n/);
+        for (let idx = 0; idx < lines.length; idx += 1) {
+          const line = lines[idx].trim();
+          if (!line) {
+            continue;
+          }
+          try {
+            collect(JSON.parse(line), "line:" + (idx + 1));
+          } catch (_lineErr) {
+            warnings.push("line:" + (idx + 1) + ": invalid JSON");
+          }
+        }
+        return { records: records, warnings: warnings };
+      }
+
+      function applyFeedbackRecords(works, feedbackMap, parsedRecords) {
+        const nextMap = Object.assign({}, feedbackMap || {});
+        const keysSet = new Set((works || []).map((w) => w.key));
+        const byWorkId = new Map();
+        for (const w of works || []) {
+          const arr = byWorkId.get(w.work_id) || [];
+          arr.push(w.key);
+          byWorkId.set(w.work_id, arr);
+        }
+
+        let matched = 0;
+        let unmatched = 0;
+        for (const rec of parsedRecords || []) {
+          const exactKey = rec.project_id ? makeWorkKey(rec.project_id, rec.work_id) : null;
+          if (exactKey && keysSet.has(exactKey)) {
+            nextMap[exactKey] = rec.feedback;
+            matched += 1;
+          } else {
+            const candidates = byWorkId.get(rec.work_id) || [];
+            if (candidates.length === 1) {
+              nextMap[candidates[0]] = rec.feedback;
+              matched += 1;
+            } else {
+              unmatched += 1;
+            }
+          }
+        }
+        return { feedbackMap: nextMap, matched: matched, unmatched: unmatched };
+      }
+
+      function computeStats(works, feedbackMap) {
+        const stats = {
+          total: works.length,
+          reviewed: 0,
+          unreviewed: 0,
+          correct: 0,
+          not_my_work: 0,
+          misunderstood: 0,
+          needs_edit: 0,
+          incorrect: 0
+        };
+        for (const w of works) {
+          const fb = feedbackMap[w.key];
+          const verdict = fb && VALID_VERDICTS.has(fb.verdict) ? fb.verdict : "unreviewed";
+          if (verdict === "unreviewed") {
+            stats.unreviewed += 1;
+          } else {
+            stats.reviewed += 1;
+            stats[verdict] += 1;
+            if (verdict !== "correct") {
+              stats.incorrect += 1;
+            }
+          }
+        }
+        return stats;
+      }
+
+      function buildFeedbackExport(works, feedbackMap, options) {
+        const opts = options || {};
+        const reviewedOnly = opts.reviewedOnly !== false;
+        const items = [];
+        for (const w of works || []) {
+          const fb = feedbackMap[w.key] || createFeedbackEntry("unreviewed", "", null, null);
+          if (reviewedOnly && fb.verdict === "unreviewed" && !fb.reason.trim()) {
+            continue;
+          }
+          items.push({
+            schema_version: "1.0.0",
+            project_id: w.project_id,
+            work_id: w.work_id,
+            title: w.title,
+            record_revision: w.record_revision,
+            is_correct: fb.is_correct,
+            verdict: fb.verdict,
+            ownership_confirmed: fb.ownership_confirmed,
+            reason: fb.reason.trim(),
+            original_contribution: w.contribution,
+            original_review_status: w.review_status,
+            reviewed_at: fb.reviewed_at
+          });
+        }
+        return items;
+      }
+
+      function serializeFeedbackJsonl(items) {
+        if (!items || items.length === 0) {
+          return "";
+        }
+        return items.map((item) => JSON.stringify(item)).join("\n") + "\n";
+      }
+
+      function serializeFeedbackBundle(works, feedbackMap, options) {
+        const items = buildFeedbackExport(works, feedbackMap, options);
+        const bundle = {
+          schema_version: "1.0.0",
+          exported_at: new Date().toISOString(),
+          summary: computeStats(works || [], feedbackMap || {}),
+          exported_count: items.length,
+          items: items
+        };
+        return JSON.stringify(bundle, null, 2) + "\n";
+      }
+
+      root.TracefolioFeedbackCore = Object.freeze({
+        VERDICT_DEFAULTS: VERDICT_DEFAULTS,
+        makeWorkKey: makeWorkKey,
+        inferProjectIdFromPath: inferProjectIdFromPath,
+        parseWorksText: parseWorksText,
+        mergeWorks: mergeWorks,
+        createFeedbackEntry: createFeedbackEntry,
+        parseFeedbackText: parseFeedbackText,
+        applyFeedbackRecords: applyFeedbackRecords,
+        computeStats: computeStats,
+        buildFeedbackExport: buildFeedbackExport,
+        serializeFeedbackJsonl: serializeFeedbackJsonl,
+        serializeFeedbackBundle: serializeFeedbackBundle
+      });
+    })(typeof globalThis !== "undefined" ? globalThis : window);
+  </script>
+
+  <script id="tracefolio-feedback-ui">
+    (function () {
+      "use strict";
+
+      const Core = globalThis.TracefolioFeedbackCore;
+      const STORAGE_KEY = "tracefolio_work_feedback_session_v1";
+      const THEME_KEY = "tracefolio_work_feedback_theme_v1";
+
+      const QUICK_REASONS = [
+        "ไม่ได้เป็นคนทำส่วนนี้",
+        "เป็นโค้ดของทีมอื่น / Third-party",
+        "ระบบเข้าใจผิดเรื่องขอบเขตงาน",
+        "รายละเอียดเทคนิคสรุปคลาดเคลื่อน",
+        "ทำจริงแต่เป็นเพียง Prototype ยังไม่ขึ้น Production",
+        "ทำร่วมกับทีม (Collaborative) ไม่ใช่ทำคนเดียว"
+      ];
+
+      const state = {
+        works: [],
+        feedback: {},
+        viewMode: "list",
+        focusIndex: 0,
+        filters: {
+          search: "",
+          project: "__all__",
+          verdict: "__all__",
+          contribution: "__all__"
+        }
+      };
+
+      const el = {
+        dropzone: document.getElementById("dropzone"),
+        inputFiles: document.getElementById("input-files"),
+        inputFolder: document.getElementById("input-folder"),
+        inputFeedback: document.getElementById("input-feedback"),
+        btnInsertFiles: document.getElementById("btn-insert-files"),
+        btnInsertFolder: document.getElementById("btn-insert-folder"),
+        btnPasteOpen: document.getElementById("btn-paste-open"),
+        btnImportFeedback: document.getElementById("btn-import-feedback"),
+        btnClearSession: document.getElementById("btn-clear-session"),
+        btnExportJsonl: document.getElementById("btn-export-jsonl"),
+        btnExportJson: document.getElementById("btn-export-json"),
+        btnCopyJsonl: document.getElementById("btn-copy-jsonl"),
+        btnTheme: document.getElementById("btn-theme"),
+        statusBanner: document.getElementById("status-banner"),
+        statusBannerText: document.getElementById("status-banner-text"),
+        btnDismissBanner: document.getElementById("btn-dismiss-banner"),
+        statTotal: document.getElementById("stat-total"),
+        statReviewed: document.getElementById("stat-reviewed"),
+        statCorrect: document.getElementById("stat-correct"),
+        statNotMine: document.getElementById("stat-not-mine"),
+        statMisunderstood: document.getElementById("stat-misunderstood"),
+        statNeedsEdit: document.getElementById("stat-needs-edit"),
+        progressLabel: document.getElementById("progress-label"),
+        progressPct: document.getElementById("progress-pct"),
+        progressFill: document.getElementById("progress-fill"),
+        filterSearch: document.getElementById("filter-search"),
+        filterProject: document.getElementById("filter-project"),
+        filterVerdict: document.getElementById("filter-verdict"),
+        filterContribution: document.getElementById("filter-contribution"),
+        btnModeList: document.getElementById("btn-mode-list"),
+        btnModeFocus: document.getElementById("btn-mode-focus"),
+        chkExportReviewedOnly: document.getElementById("chk-export-reviewed-only"),
+        chkAutosave: document.getElementById("chk-autosave"),
+        focusNav: document.getElementById("focus-nav"),
+        focusCounter: document.getElementById("focus-counter"),
+        btnFocusPrev: document.getElementById("btn-focus-prev"),
+        btnFocusNext: document.getElementById("btn-focus-next"),
+        btnFocusNextUnreviewed: document.getElementById("btn-focus-next-unreviewed"),
+        worksContainer: document.getElementById("works-container"),
+        pasteModal: document.getElementById("paste-modal"),
+        pasteTextarea: document.getElementById("paste-textarea"),
+        btnPasteCancel: document.getElementById("btn-paste-cancel"),
+        btnPasteSubmit: document.getElementById("btn-paste-submit"),
+        toast: document.getElementById("toast")
+      };
+
+      let toastTimer = null;
+
+      function showToast(message) {
+        el.toast.textContent = message;
+        el.toast.classList.add("show");
+        if (toastTimer) {
+          clearTimeout(toastTimer);
+        }
+        toastTimer = setTimeout(() => {
+          el.toast.classList.remove("show");
+        }, 2600);
+      }
+
+      function showBanner(message, level) {
+        el.statusBannerText.textContent = message;
+        el.statusBanner.className = "banner visible " + (level || "info");
+      }
+
+      function hideBanner() {
+        el.statusBanner.className = "banner";
+        el.statusBannerText.textContent = "";
+      }
+
+      function persistSession() {
+        if (!el.chkAutosave.checked) {
+          return;
+        }
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            works: state.works,
+            feedback: state.feedback
+          }));
+        } catch (_err) {
+          // Ignore quota or disabled storage errors
+        }
+      }
+
+      function restoreSession() {
+        try {
+          const savedTheme = localStorage.getItem(THEME_KEY);
+          if (savedTheme === "dark") {
+            document.documentElement.setAttribute("data-theme", "dark");
+          }
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) {
+            return;
+          }
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed.works)) {
+            state.works = parsed.works;
+          }
+          if (parsed.feedback && typeof parsed.feedback === "object") {
+            state.feedback = parsed.feedback;
+          }
+          if (state.works.length > 0) {
+            showBanner("กู้คืน Session ล่าสุดจาก Browser แล้ว (" + state.works.length + " รายการ) — กด Clear Session หากต้องการเริ่มใหม่", "info");
+          }
+        } catch (_err) {
+          // Ignore invalid stored session
+        }
+      }
+
+      function getFilteredWorks() {
+        const q = state.filters.search.trim().toLowerCase();
+        return state.works.filter((w) => {
+          if (state.filters.project !== "__all__" && w.project_id !== state.filters.project) {
+            return false;
+          }
+          if (state.filters.contribution !== "__all__" && w.contribution !== state.filters.contribution) {
+            return false;
+          }
+          const fb = state.feedback[w.key];
+          const verdict = fb ? fb.verdict : "unreviewed";
+          if (state.filters.verdict === "incorrect") {
+            if (verdict === "unreviewed" || verdict === "correct") {
+              return false;
+            }
+          } else if (state.filters.verdict !== "__all__" && verdict !== state.filters.verdict) {
+            return false;
+          }
+          if (q) {
+            const haystack = [
+              w.project_id,
+              w.work_id,
+              w.title,
+              w.problem || "",
+              w.actions.join(" "),
+              w.unknowns.join(" "),
+              fb ? fb.reason : ""
+            ].join(" ").toLowerCase();
+            if (!haystack.includes(q)) {
+              return false;
+            }
+          }
+          return true;
+        });
+      }
+
+      function updateProjectDropdown() {
+        const previous = state.filters.project;
+        const projects = Array.from(new Set(state.works.map((w) => w.project_id))).sort();
+        const nodes = [];
+        const allOpt = document.createElement("option");
+        allOpt.value = "__all__";
+        allOpt.textContent = "ทุกโปรเจกต์ (" + projects.length + ")";
+        nodes.push(allOpt);
+        for (const pid of projects) {
+          const opt = document.createElement("option");
+          opt.value = pid;
+          opt.textContent = pid;
+          nodes.push(opt);
+        }
+        el.filterProject.replaceChildren(...nodes);
+        if (projects.includes(previous)) {
+          el.filterProject.value = previous;
+        } else {
+          state.filters.project = "__all__";
+          el.filterProject.value = "__all__";
+        }
+      }
+
+      function updateStats() {
+        const stats = Core.computeStats(state.works, state.feedback);
+        el.statTotal.textContent = String(stats.total);
+        el.statReviewed.textContent = String(stats.reviewed);
+        el.statCorrect.textContent = String(stats.correct);
+        el.statNotMine.textContent = String(stats.not_my_work);
+        el.statMisunderstood.textContent = String(stats.misunderstood);
+        el.statNeedsEdit.textContent = String(stats.needs_edit);
+
+        const pct = stats.total > 0 ? Math.round((stats.reviewed / stats.total) * 100) : 0;
+        el.progressPct.textContent = pct + "%";
+        el.progressFill.style.width = pct + "%";
+        el.progressLabel.textContent = stats.total > 0
+          ? "ตรวจแล้ว " + stats.reviewed + " / " + stats.total + " รายการ (คงเหลือ " + stats.unreviewed + " รายการ)"
+          : "ยังไม่มีรายการที่โหลด — กดปุ่ม Insert ด้านบนเพื่อนำเข้าไฟล์ Work";
+
+        const hasWorks = stats.total > 0;
+        el.btnExportJsonl.disabled = !hasWorks;
+        el.btnExportJson.disabled = !hasWorks;
+        el.btnCopyJsonl.disabled = !hasWorks;
+        el.dropzone.classList.toggle("compact", hasWorks);
+      }
+
+      function makePill(text, extraClass) {
+        const span = document.createElement("span");
+        span.className = "pill" + (extraClass ? " " + extraClass : "");
+        span.textContent = text;
+        return span;
+      }
+
+      function setVerdict(workKey, verdict, ownershipOverride) {
+        const current = state.feedback[workKey];
+        const reason = current ? current.reason : "";
+        if (verdict === "unreviewed") {
+          if (reason.trim()) {
+            state.feedback[workKey] = Core.createFeedbackEntry("unreviewed", reason, null, null);
+          } else {
+            delete state.feedback[workKey];
+          }
+        } else {
+          const nextOwnership = ownershipOverride !== undefined
+            ? ownershipOverride
+            : (verdict === "misunderstood" && current && current.verdict === "misunderstood"
+                ? current.ownership_confirmed
+                : undefined);
+          state.feedback[workKey] = Core.createFeedbackEntry(verdict, reason, nextOwnership);
+        }
+        persistSession();
+        updateStats();
+        renderWorks();
+      }
+
+      function setReason(workKey, reasonText) {
+        const current = state.feedback[workKey];
+        if (current) {
+          current.reason = reasonText;
+          if (current.verdict !== "unreviewed") {
+            current.reviewed_at = new Date().toISOString();
+          }
+        } else {
+          state.feedback[workKey] = Core.createFeedbackEntry("unreviewed", reasonText, null, null);
+        }
+        persistSession();
+      }
+
+      function buildWorkCard(work) {
+        const fb = state.feedback[work.key] || Core.createFeedbackEntry("unreviewed", "", null, null);
+        const card = document.createElement("article");
+        card.className = "work-card verdict-" + fb.verdict;
+        card.dataset.workKey = work.key;
+
+        // Header
+        const header = document.createElement("div");
+        header.className = "card-header";
+
+        const left = document.createElement("div");
+        const idRow = document.createElement("div");
+        idRow.className = "card-ids";
+        idRow.appendChild(makePill(work.project_id, "project mono"));
+        idRow.appendChild(makePill(work.work_id, "mono"));
+        if (work.project_id_inferred) {
+          idRow.appendChild(makePill("project_id inferred", "warn"));
+        }
+        if (work.record_revision !== null) {
+          idRow.appendChild(makePill("rev " + work.record_revision));
+        }
+
+        const title = document.createElement("h2");
+        title.className = "work-title";
+        title.textContent = work.title;
+        left.appendChild(idRow);
+        left.appendChild(title);
+
+        const badges = document.createElement("div");
+        badges.className = "card-badges";
+        badges.appendChild(makePill("contribution: " + work.contribution, work.contribution === "self_authored" ? "ok" : ""));
+        badges.appendChild(makePill("impl: " + work.implementation_status));
+        badges.appendChild(makePill("analysis: " + work.analysis_status));
+        badges.appendChild(makePill("review: " + work.review_status));
+
+        header.appendChild(left);
+        header.appendChild(badges);
+        card.appendChild(header);
+
+        // Problem
+        if (work.problem) {
+          const sec = document.createElement("div");
+          sec.className = "section-block";
+          const lbl = document.createElement("div");
+          lbl.className = "section-label";
+          lbl.textContent = "Problem";
+          const p = document.createElement("p");
+          p.className = "problem-text";
+          p.textContent = work.problem;
+          sec.appendChild(lbl);
+          sec.appendChild(p);
+          card.appendChild(sec);
+        }
+
+        // Actions
+        if (work.actions.length > 0) {
+          const sec = document.createElement("div");
+          sec.className = "section-block";
+          const lbl = document.createElement("div");
+          lbl.className = "section-label";
+          lbl.textContent = "Actions (" + work.actions.length + ")";
+          const ul = document.createElement("ul");
+          ul.className = "bullet-list";
+          for (const action of work.actions) {
+            const li = document.createElement("li");
+            li.textContent = action;
+            ul.appendChild(li);
+          }
+          sec.appendChild(lbl);
+          sec.appendChild(ul);
+          card.appendChild(sec);
+        }
+
+        // Unknowns
+        if (work.unknowns.length > 0) {
+          const box = document.createElement("div");
+          box.className = "unknowns-box";
+          const lbl = document.createElement("div");
+          lbl.className = "section-label";
+          lbl.textContent = "Unknowns / Caveats";
+          const ul = document.createElement("ul");
+          ul.className = "bullet-list";
+          for (const u of work.unknowns) {
+            const li = document.createElement("li");
+            li.textContent = u;
+            ul.appendChild(li);
+          }
+          box.appendChild(lbl);
+          box.appendChild(ul);
+          card.appendChild(box);
+        }
+
+        // Expandable Claims, Skills & Provenance
+        const extraCount = work.claims.length + work.skills.length + work.provenance.evidence_refs.length;
+        if (extraCount > 0) {
+          const details = document.createElement("details");
+          details.className = "extra-details";
+          const summary = document.createElement("summary");
+          summary.textContent = "รายละเอียดเพิ่มเติม: "
+            + work.claims.length + " claims, "
+            + work.skills.length + " skills, "
+            + work.provenance.evidence_refs.length + " evidence refs";
+          details.appendChild(summary);
+
+          if (work.claims.length > 0) {
+            const sec = document.createElement("div");
+            sec.className = "section-block";
+            const lbl = document.createElement("div");
+            lbl.className = "section-label";
+            lbl.textContent = "Claims";
+            sec.appendChild(lbl);
+            for (const c of work.claims) {
+              const row = document.createElement("div");
+              row.className = "claim-item";
+              const top = document.createElement("div");
+              top.style.display = "flex";
+              top.style.gap = "6px";
+              top.style.flexWrap = "wrap";
+              top.appendChild(makePill(c.claim_id || "claim", "mono"));
+              top.appendChild(makePill(c.status));
+              const stmt = document.createElement("div");
+              stmt.textContent = c.statement;
+              stmt.style.marginTop = "4px";
+              row.appendChild(top);
+              row.appendChild(stmt);
+              sec.appendChild(row);
+            }
+            details.appendChild(sec);
+          }
+
+          if (work.skills.length > 0) {
+            const sec = document.createElement("div");
+            sec.className = "section-block";
+            const lbl = document.createElement("div");
+            lbl.className = "section-label";
+            lbl.textContent = "Skills";
+            const wrap = document.createElement("div");
+            wrap.style.display = "flex";
+            wrap.style.flexWrap = "wrap";
+            wrap.style.gap = "6px";
+            for (const s of work.skills) {
+              wrap.appendChild(makePill(s.name));
+            }
+            sec.appendChild(lbl);
+            sec.appendChild(wrap);
+            details.appendChild(sec);
+          }
+
+          if (work.provenance.source_ids.length > 0 || work.provenance.evidence_refs.length > 0) {
+            const sec = document.createElement("div");
+            sec.className = "section-block";
+            const lbl = document.createElement("div");
+            lbl.className = "section-label";
+            lbl.textContent = "Provenance";
+            const meta = document.createElement("div");
+            meta.style.fontFamily = "var(--mono)";
+            meta.style.fontSize = "0.78rem";
+            meta.style.wordBreak = "break-all";
+            meta.textContent = "sources: [" + work.provenance.source_ids.join(", ") + "] | evidence_refs: " + work.provenance.evidence_refs.length;
+            sec.appendChild(lbl);
+            sec.appendChild(meta);
+            details.appendChild(sec);
+          }
+
+          card.appendChild(details);
+        }
+
+        // Feedback Panel
+        const panel = document.createElement("div");
+        panel.className = "feedback-panel";
+
+        const verdictRow = document.createElement("div");
+        verdictRow.className = "verdict-row";
+
+        const verdictOptions = [
+          { id: "correct", label: "✓ ถูก (ทำจริง & สรุปตรง)" },
+          { id: "not_my_work", label: "✕ ผิด: ไม่ได้ทำ" },
+          { id: "misunderstood", label: "⚠ ผิด: ระบบเข้าใจผิด" },
+          { id: "needs_edit", label: "✎ ถูกบางส่วน / ต้องปรับแก้" }
+        ];
+
+        for (const opt of verdictOptions) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "verdict-btn" + (fb.verdict === opt.id ? " active-" + opt.id : "");
+          btn.textContent = opt.label;
+          btn.addEventListener("click", () => setVerdict(work.key, opt.id));
+          verdictRow.appendChild(btn);
+        }
+
+        if (fb.verdict !== "unreviewed") {
+          const resetBtn = document.createElement("button");
+          resetBtn.type = "button";
+          resetBtn.textContent = "ล้างผล";
+          resetBtn.addEventListener("click", () => setVerdict(work.key, "unreviewed"));
+          verdictRow.appendChild(resetBtn);
+        }
+        panel.appendChild(verdictRow);
+
+        // Optional ownership sub-selection when verdict === misunderstood
+        if (fb.verdict === "misunderstood") {
+          const ownRow = document.createElement("div");
+          ownRow.className = "ownership-row";
+          const ownLbl = document.createElement("span");
+          ownLbl.textContent = "ยืนยันเพิ่มเติม (งานนี้คุณได้ทำไหม?):";
+          ownRow.appendChild(ownLbl);
+
+          const ownChoices = [
+            { val: true, label: "ทำจริง (แต่ระบบสรุปผิด)" },
+            { val: false, label: "ไม่ได้ทำ" },
+            { val: null, label: "ยังไม่ระบุ" }
+          ];
+          for (const c of ownChoices) {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "ownership-btn" + (fb.ownership_confirmed === c.val ? " active" : "");
+            btn.textContent = c.label;
+            btn.addEventListener("click", () => setVerdict(work.key, "misunderstood", c.val));
+            ownRow.appendChild(btn);
+          }
+          panel.appendChild(ownRow);
+        }
+
+        // Reason textarea + Quick chips
+        const reasonWrap = document.createElement("div");
+        reasonWrap.className = "reason-wrap";
+        const reasonLabel = document.createElement("label");
+        reasonLabel.className = "section-label";
+        reasonLabel.textContent = "เหตุผล / ข้อเท็จจริงที่ถูกต้อง (Reason)";
+
+        const textarea = document.createElement("textarea");
+        textarea.className = "reason-textarea";
+        textarea.placeholder = "ระบุเหตุผล เช่น ไม่ได้ทำส่วนนี้, ระบบเข้าใจผิดตรงไหน, หรือรายละเอียดที่ถูกต้องคืออะไร...";
+        textarea.value = fb.reason || "";
+        textarea.addEventListener("input", (event) => {
+          setReason(work.key, event.target.value);
+        });
+
+        const chips = document.createElement("div");
+        chips.className = "quick-chips";
+        for (const text of QUICK_REASONS) {
+          const chip = document.createElement("button");
+          chip.type = "button";
+          chip.className = "chip-btn";
+          chip.textContent = "+ " + text;
+          chip.addEventListener("click", () => {
+            const existing = textarea.value.trim();
+            const nextValue = existing ? existing + (existing.endsWith(".") ? " " : "; ") + text : text;
+            textarea.value = nextValue;
+            setReason(work.key, nextValue);
+            textarea.focus();
+          });
+          chips.appendChild(chip);
+        }
+
+        reasonWrap.appendChild(reasonLabel);
+        reasonWrap.appendChild(textarea);
+        reasonWrap.appendChild(chips);
+        panel.appendChild(reasonWrap);
+
+        card.appendChild(panel);
+        return card;
+      }
+
+      function renderWorks() {
+        const filtered = getFilteredWorks();
+        const isFocus = state.viewMode === "focus";
+        el.focusNav.classList.toggle("visible", isFocus && filtered.length > 0);
+        el.btnModeList.classList.toggle("active", !isFocus);
+        el.btnModeFocus.classList.toggle("active", isFocus);
+
+        if (state.works.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "empty-state";
+          empty.textContent = "ยังไม่มีรายการ Work — กดปุ่ม Insert JSONL / JSON Files, Insert Folder หรือ Paste JSON ด้านบนเพื่อเริ่มต้น";
+          el.worksContainer.replaceChildren(empty);
+          return;
+        }
+
+        if (filtered.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "empty-state";
+          empty.textContent = "ไม่พบรายการ Work ที่ตรงกับตัวกรองปัจจุบัน";
+          el.worksContainer.replaceChildren(empty);
+          return;
+        }
+
+        if (isFocus) {
+          if (state.focusIndex >= filtered.length) {
+            state.focusIndex = filtered.length - 1;
+          }
+          if (state.focusIndex < 0) {
+            state.focusIndex = 0;
+          }
+          el.focusCounter.textContent = (state.focusIndex + 1) + " / " + filtered.length;
+          el.btnFocusPrev.disabled = state.focusIndex <= 0;
+          el.btnFocusNext.disabled = state.focusIndex >= filtered.length - 1;
+          el.worksContainer.replaceChildren(buildWorkCard(filtered[state.focusIndex]));
+          return;
+        }
+
+        const fragment = document.createDocumentFragment();
+        for (const work of filtered) {
+          fragment.appendChild(buildWorkCard(work));
+        }
+        el.worksContainer.replaceChildren(fragment);
+      }
+
+      async function ingestWorkFiles(fileList) {
+        const files = Array.from(fileList || []).filter((f) => /\.(json|jsonl|ndjson|txt)$/i.test(f.name));
+        if (files.length === 0) {
+          showBanner("ไม่พบไฟล์ .json หรือ .jsonl ในรายการที่เลือก", "warn");
+          return;
+        }
+        const incoming = [];
+        const allWarnings = [];
+        for (const file of files) {
+          const text = await file.text();
+          const label = file.webkitRelativePath || file.name;
+          const result = Core.parseWorksText(text, label);
+          incoming.push(...result.works);
+          allWarnings.push(...result.warnings);
+        }
+        const merged = Core.mergeWorks(state.works, incoming);
+        state.works = merged.works;
+        persistSession();
+        updateProjectDropdown();
+        updateStats();
+        renderWorks();
+
+        const summaryMsg = "นำเข้าสำเร็จ: เพิ่มใหม่ " + merged.added + " รายการ, อัปเดต " + merged.updated + " รายการ (จาก " + files.length + " ไฟล์)";
+        if (allWarnings.length > 0) {
+          showBanner(summaryMsg + " | คำเตือน (" + allWarnings.length + "): " + allWarnings.slice(0, 3).join(" ; "), "warn");
+        } else {
+          showBanner(summaryMsg, "info");
+        }
+        showToast("โหลดงานทั้งหมด " + state.works.length + " รายการแล้ว");
+      }
+
+      async function ingestFeedbackFile(file) {
+        if (!file) {
+          return;
+        }
+        const text = await file.text();
+        const parsed = Core.parseFeedbackText(text);
+        const applied = Core.applyFeedbackRecords(state.works, state.feedback, parsed.records);
+        state.feedback = applied.feedbackMap;
+        persistSession();
+        updateStats();
+        renderWorks();
+        const msg = "นำเข้า Feedback แล้ว: จับคู่สำเร็จ " + applied.matched + " รายการ"
+          + (applied.unmatched > 0 ? ", ไม่ตรงกับงานที่โหลด " + applied.unmatched + " รายการ" : "");
+        showBanner(parsed.warnings.length ? msg + " | คำเตือน: " + parsed.warnings.slice(0, 2).join(" ; ") : msg,
+          applied.unmatched > 0 || parsed.warnings.length > 0 ? "warn" : "info");
+        showToast("กู้คืน Feedback " + applied.matched + " รายการ");
+      }
+
+      function downloadFile(filename, content, mimeType) {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+
+      function timestampSlug() {
+        return new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19) + "Z";
+      }
+
+      // Wire events
+      el.btnInsertFiles.addEventListener("click", () => {
+        el.inputFiles.value = "";
+        el.inputFiles.click();
+      });
+      el.inputFiles.addEventListener("change", (e) => ingestWorkFiles(e.target.files));
+
+      el.btnInsertFolder.addEventListener("click", () => {
+        el.inputFolder.value = "";
+        el.inputFolder.click();
+      });
+      el.inputFolder.addEventListener("change", (e) => ingestWorkFiles(e.target.files));
+
+      el.btnImportFeedback.addEventListener("click", () => {
+        el.inputFeedback.value = "";
+        el.inputFeedback.click();
+      });
+      el.inputFeedback.addEventListener("change", (e) => ingestFeedbackFile(e.target.files[0]));
+
+      el.btnPasteOpen.addEventListener("click", () => {
+        el.pasteTextarea.value = "";
+        el.pasteModal.classList.add("open");
+        el.pasteTextarea.focus();
+      });
+      el.btnPasteCancel.addEventListener("click", () => el.pasteModal.classList.remove("open"));
+      el.pasteModal.addEventListener("click", (e) => {
+        if (e.target === el.pasteModal) {
+          el.pasteModal.classList.remove("open");
+        }
+      });
+      el.btnPasteSubmit.addEventListener("click", () => {
+        const res = Core.parseWorksText(el.pasteTextarea.value, "pasted");
+        const merged = Core.mergeWorks(state.works, res.works);
+        state.works = merged.works;
+        el.pasteModal.classList.remove("open");
+        persistSession();
+        updateProjectDropdown();
+        updateStats();
+        renderWorks();
+        if (res.warnings.length > 0) {
+          showBanner("เพิ่ม " + merged.added + " รายการ | คำเตือน: " + res.warnings.slice(0, 3).join(" ; "), "warn");
+        } else {
+          showBanner("นำเข้าจาก Clipboard สำเร็จ: เพิ่ม " + merged.added + " รายการ, อัปเดต " + merged.updated + " รายการ", "info");
+        }
+      });
+
+      el.btnClearSession.addEventListener("click", () => {
+        if (state.works.length === 0 && Object.keys(state.feedback).length === 0) {
+          return;
+        }
+        if (!window.confirm("ล้างรายการ Work และ Feedback ทั้งหมดออกจากหน้านี้และ Browser localStorage?")) {
+          return;
+        }
+        state.works = [];
+        state.feedback = {};
+        state.focusIndex = 0;
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch (_err) {
+          // Ignore
+        }
+        hideBanner();
+        updateProjectDropdown();
+        updateStats();
+        renderWorks();
+        showToast("ล้าง Session เรียบร้อยแล้ว");
+      });
+
+      el.btnExportJsonl.addEventListener("click", () => {
+        const items = Core.buildFeedbackExport(state.works, state.feedback, {
+          reviewedOnly: el.chkExportReviewedOnly.checked
+        });
+        if (items.length === 0) {
+          showBanner("ยังไม่มีรายการที่พร้อม Export (ลองเลือก Verdict อย่างน้อย 1 รายการ หรือยกเลิกติ๊ก 'Export เฉพาะที่ตรวจแล้ว')", "warn");
+          return;
+        }
+        downloadFile("work-feedback-" + timestampSlug() + ".jsonl", Core.serializeFeedbackJsonl(items), "application/x-ndjson;charset=utf-8");
+        showToast("Export JSONL จำนวน " + items.length + " รายการแล้ว");
+      });
+
+      el.btnExportJson.addEventListener("click", () => {
+        const reviewedOnly = el.chkExportReviewedOnly.checked;
+        const items = Core.buildFeedbackExport(state.works, state.feedback, { reviewedOnly: reviewedOnly });
+        if (items.length === 0) {
+          showBanner("ยังไม่มีรายการที่พร้อม Export", "warn");
+          return;
+        }
+        const jsonText = Core.serializeFeedbackBundle(state.works, state.feedback, { reviewedOnly: reviewedOnly });
+        downloadFile("work-feedback-" + timestampSlug() + ".json", jsonText, "application/json;charset=utf-8");
+        showToast("Export JSON จำนวน " + items.length + " รายการแล้ว");
+      });
+
+      el.btnCopyJsonl.addEventListener("click", async () => {
+        const items = Core.buildFeedbackExport(state.works, state.feedback, {
+          reviewedOnly: el.chkExportReviewedOnly.checked
+        });
+        if (items.length === 0) {
+          showBanner("ยังไม่มีรายการสำหรับคัดลอก", "warn");
+          return;
+        }
+        const text = Core.serializeFeedbackJsonl(items);
+        try {
+          await navigator.clipboard.writeText(text);
+          showToast("คัดลอก JSONL (" + items.length + " รายการ) ลง Clipboard แล้ว");
+        } catch (_err) {
+          showBanner("Browser ไม่อนุญาตให้เข้าถึง Clipboard โดยตรง — กรุณาใช้ปุ่ม Export Feedback (.jsonl) แทน", "warn");
+        }
+      });
+
+      el.btnTheme.addEventListener("click", () => {
+        const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+        if (isDark) {
+          document.documentElement.removeAttribute("data-theme");
+          try { localStorage.setItem(THEME_KEY, "light"); } catch (_err) { /* ignore */ }
+        } else {
+          document.documentElement.setAttribute("data-theme", "dark");
+          try { localStorage.setItem(THEME_KEY, "dark"); } catch (_err) { /* ignore */ }
+        }
+      });
+
+      el.btnDismissBanner.addEventListener("click", hideBanner);
+
+      el.filterSearch.addEventListener("input", (e) => {
+        state.filters.search = e.target.value;
+        state.focusIndex = 0;
+        renderWorks();
+      });
+      el.filterProject.addEventListener("change", (e) => {
+        state.filters.project = e.target.value;
+        state.focusIndex = 0;
+        renderWorks();
+      });
+      el.filterVerdict.addEventListener("change", (e) => {
+        state.filters.verdict = e.target.value;
+        state.focusIndex = 0;
+        renderWorks();
+      });
+      el.filterContribution.addEventListener("change", (e) => {
+        state.filters.contribution = e.target.value;
+        state.focusIndex = 0;
+        renderWorks();
+      });
+
+      el.btnModeList.addEventListener("click", () => {
+        state.viewMode = "list";
+        renderWorks();
+      });
+      el.btnModeFocus.addEventListener("click", () => {
+        state.viewMode = "focus";
+        state.focusIndex = 0;
+        renderWorks();
+      });
+
+      el.btnFocusPrev.addEventListener("click", () => {
+        if (state.focusIndex > 0) {
+          state.focusIndex -= 1;
+          renderWorks();
+        }
+      });
+      el.btnFocusNext.addEventListener("click", () => {
+        const filtered = getFilteredWorks();
+        if (state.focusIndex < filtered.length - 1) {
+          state.focusIndex += 1;
+          renderWorks();
+        }
+      });
+      el.btnFocusNextUnreviewed.addEventListener("click", () => {
+        const filtered = getFilteredWorks();
+        if (filtered.length === 0) {
+          return;
+        }
+        for (let step = 1; step <= filtered.length; step += 1) {
+          const idx = (state.focusIndex + step) % filtered.length;
+          const fb = state.feedback[filtered[idx].key];
+          if (!fb || fb.verdict === "unreviewed") {
+            state.focusIndex = idx;
+            renderWorks();
+            return;
+          }
+        }
+        showToast("ตรวจครบทุกรายการในมุมมองนี้แล้ว!");
+      });
+
+      // Drag and drop on entire dropzone
+      ["dragenter", "dragover"].forEach((evt) => {
+        el.dropzone.addEventListener(evt, (e) => {
+          e.preventDefault();
+          el.dropzone.classList.add("drag-over");
+        });
+      });
+      ["dragleave", "drop"].forEach((evt) => {
+        el.dropzone.addEventListener(evt, (e) => {
+          e.preventDefault();
+          el.dropzone.classList.remove("drag-over");
+        });
+      });
+      el.dropzone.addEventListener("drop", (e) => {
+        if (e.dataTransfer && e.dataTransfer.files) {
+          ingestWorkFiles(e.dataTransfer.files);
+        }
+      });
+
+      // Keyboard shortcuts in Focus Mode
+      document.addEventListener("keydown", (e) => {
+        if (el.pasteModal.classList.contains("open")) {
+          if (e.key === "Escape") {
+            el.pasteModal.classList.remove("open");
+          }
+          return;
+        }
+        const tag = document.activeElement ? document.activeElement.tagName : "";
+        if (tag === "TEXTAREA" || tag === "INPUT" || tag === "SELECT") {
+          if (e.key === "Escape") {
+            document.activeElement.blur();
+          }
+          return;
+        }
+        if (state.viewMode !== "focus") {
+          return;
+        }
+        const filtered = getFilteredWorks();
+        if (filtered.length === 0) {
+          return;
+        }
+        const activeWork = filtered[state.focusIndex];
+        if (!activeWork) {
+          return;
+        }
+        if (e.key === "1") {
+          setVerdict(activeWork.key, "correct");
+        } else if (e.key === "2") {
+          setVerdict(activeWork.key, "not_my_work");
+        } else if (e.key === "3") {
+          setVerdict(activeWork.key, "misunderstood");
+        } else if (e.key === "4") {
+          setVerdict(activeWork.key, "needs_edit");
+        } else if (e.key === "0") {
+          setVerdict(activeWork.key, "unreviewed");
+        } else if (e.key === "j" || e.key === "J" || e.key === "ArrowRight") {
+          el.btnFocusNext.click();
+        } else if (e.key === "k" || e.key === "K" || e.key === "ArrowLeft") {
+          el.btnFocusPrev.click();
+        } else if (e.key === "u" || e.key === "U") {
+          el.btnFocusNextUnreviewed.click();
+        } else if (e.key === "r" || e.key === "R") {
+          e.preventDefault();
+          const area = el.worksContainer.querySelector(".reason-textarea");
+          if (area) {
+            area.focus();
+          }
+        }
+      });
+
+      // Initialize
+      restoreSession();
+      updateProjectDropdown();
+      updateStats();
+      renderWorks();
+    })();
+  </script>
+</body>
+</html>
