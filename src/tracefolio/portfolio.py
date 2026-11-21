@@ -94,15 +94,24 @@ def brief_portfolio(snapshot):
     """Project saved knowledge without sending historical provenance to the harness."""
     entries = []
     for entry in snapshot.entries:
+        works_brief = []
+        project_skills: set[str] = set()
+        for work in entry.works:
+            work_skills = sorted({s.name for s in work.skills})
+            project_skills.update(work_skills)
+            item = work.model_dump(include={
+                'work_id', 'title', 'problem', 'actions', 'implementation_status',
+                'contribution', 'analysis_status', 'review_status', 'unknowns'})
+            item['skills'] = work_skills
+            works_brief.append(item)
         entries.append({
             'project_id': entry.project_id, 'status': entry.status,
             'title': entry.project.title if entry.project else None,
             'summary': entry.project.summary if entry.project else None,
+            'skills': sorted(project_skills),
             'activity_window': (None if entry.activity_window is None
                                 else entry.activity_window.model_dump(mode="json")),
-            'works': [w.model_dump(include={
-                'work_id', 'title', 'problem', 'actions', 'implementation_status',
-                'contribution', 'analysis_status', 'review_status', 'unknowns'}) for w in entry.works],
+            'works': works_brief,
             'coverage': None if entry.coverage is None else {
                 'state': entry.coverage.state,
                 'pending_evidence_count': entry.coverage.pending_evidence_count,

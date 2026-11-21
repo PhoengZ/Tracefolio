@@ -107,3 +107,39 @@ def test_status_rejects_unknown_project(knowledge_workspace, monkeypatch, capsys
     monkeypatch.setenv('TRACEFOLIO_CONFIG', str(path))
     assert main(['status', '--project', 'not-configured']) == 2
     assert 'unknown_project' in capsys.readouterr().err
+
+
+def test_brief_portfolio_exposes_compact_skills_without_evidence_refs():
+    from tracefolio.contracts.knowledge import Skill, WorkRecord
+    from tracefolio.contracts.portfolio import PortfolioEntry, PortfolioSnapshot
+    from tracefolio.portfolio import brief_portfolio
+
+    snap = PortfolioSnapshot(
+        configured_project_count=1,
+        entries=[PortfolioEntry(
+            project_id='demo',
+            status='ready',
+            works=[
+                WorkRecord(
+                    project_id='demo', work_id='api', title='API', record_revision=1,
+                    skills=[
+                        Skill(name='Go', evidence_refs=['ev-1']),
+                        Skill(name='gRPC', evidence_refs=['ev-2']),
+                    ],
+                ),
+                WorkRecord(
+                    project_id='demo', work_id='infra', title='Infra', record_revision=1,
+                    skills=[
+                        Skill(name='Docker', evidence_refs=['ev-3']),
+                        Skill(name='gRPC', evidence_refs=['ev-4']),
+                    ],
+                ),
+            ],
+        )],
+    )
+    brief = brief_portfolio(snap)
+    entry = brief['entries'][0]
+    assert entry['skills'] == ['Docker', 'Go', 'gRPC']
+    assert entry['works'][0]['skills'] == ['Go', 'gRPC']
+    assert entry['works'][1]['skills'] == ['Docker', 'gRPC']
+    assert 'evidence_refs' not in json.dumps(brief)
