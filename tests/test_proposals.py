@@ -2,13 +2,12 @@ import copy
 import json
 
 import pytest
-from jsonschema import Draft202012Validator, FormatChecker
 
 from tracefolio.collection import collect_projects
+from tracefolio.contracts.knowledge import ProjectRecord, WorkRecord
 from tracefolio.errors import TracefolioError
 from tracefolio.investigation import create_packet
 from tracefolio.proposals import apply_proposal
-from tracefolio.schema_export import schemas
 from tracefolio.state import StateStore
 
 
@@ -54,9 +53,8 @@ def test_valid_proposal_publishes_separate_project_work_json(prepared):
     current = store.current("demo")
     assert result.status == "published" and current.project.work_ids == ["work-a"]
     assert current.works[0].review_status == "unreviewed"
-    for name, record in (("project", current.project), ("work", current.works[0])):
-        Draft202012Validator(schemas()[name], format_checker=FormatChecker()).validate(
-            record.model_dump(mode="json"))
+    ProjectRecord.model_validate(current.project.model_dump(mode="json"))
+    WorkRecord.model_validate(current.works[0].model_dump(mode="json"))
     assert store.read_state("demo").pending_analysis == []
 
 

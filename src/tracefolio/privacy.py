@@ -1,7 +1,6 @@
 import fnmatch
 import os
 import re
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
@@ -114,42 +113,10 @@ def resolve_allowed_path(root: Path, relative_path: str) -> Path:
 def secure_private_root(path: Path) -> None:
     try:
         path.mkdir(parents=True, exist_ok=True)
-        if os.name == "nt":
-            # A fixed program; the private path is passed through a task-specific
-            # process environment variable rather than interpolated as shell code.
-            script = r"""
-$ErrorActionPreference='Stop'
-$p=$env:TRACEFOLIO_ACL_TARGET
-$id=[Security.Principal.WindowsIdentity]::GetCurrent()
-$sid=$id.User
-$item=Get-Item -LiteralPath $p -Force
-$ownerSid=$item.GetAccessControl('Owner').GetOwner([Security.Principal.SecurityIdentifier])
-if ($ownerSid -ne $sid -and $ownerSid -ne $id.Owner -and -not ($id.Groups -contains $ownerSid)) { throw 'State directory must be owned by current user' }
-$acl=$item.GetAccessControl('Access')
-$rules=@($acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]))
-$alreadyPrivate=$acl.AreAccessRulesProtected -and $rules.Count -eq 1
-if ($alreadyPrivate) {
-  $r=$rules[0]
-  $alreadyPrivate=($r.IdentityReference.Value -eq $sid.Value) -and ($r.AccessControlType -eq 'Allow') -and (($r.FileSystemRights -band [Security.AccessControl.FileSystemRights]::FullControl) -eq [Security.AccessControl.FileSystemRights]::FullControl) -and ($r.PropagationFlags -eq 'None') -and (($r.InheritanceFlags -band [Security.AccessControl.InheritanceFlags]::ContainerInherit) -ne 0) -and (($r.InheritanceFlags -band [Security.AccessControl.InheritanceFlags]::ObjectInherit) -ne 0)
-}
-if ($alreadyPrivate) { exit 0 }
-$acl.SetAccessRuleProtection($true,$false)
-foreach ($existingRule in @($acl.GetAccessRules($true,$false,[Security.Principal.SecurityIdentifier]))) { [void]$acl.RemoveAccessRule($existingRule) }
-$rule=New-Object Security.AccessControl.FileSystemAccessRule($sid,'FullControl','ContainerInherit,ObjectInherit','None','Allow')
-$acl.SetAccessRule($rule)
-$item.SetAccessControl($acl)
-"""
-            env = dict(os.environ, TRACEFOLIO_ACL_TARGET=str(path))
-            result = subprocess.run(
-                ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
-                env=env, capture_output=True, timeout=30, check=False,
-            )
-            if result.returncode:
-                raise TracefolioError("private_permissions", exit_code=4)
-        else:
+        if os.name != "nt":
             path.chmod(0o700)
             if path.stat().st_mode & 0o077:
                 raise TracefolioError("private_permissions", exit_code=4)
-    except (OSError, subprocess.SubprocessError):
+    except OSError:
         raise TracefolioError("private_permissions", exit_code=4) from None
 

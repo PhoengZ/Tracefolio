@@ -1,6 +1,10 @@
 import base64
 import difflib
-from urllib.parse import quote
+import json
+import subprocess
+import time
+from dataclasses import dataclass, field
+from urllib.parse import quote, urlencode
 
 from ..contracts.evidence import CollectionResult, ContextResult, SourceCursor
 from ..errors import TracefolioError
@@ -8,13 +12,94 @@ from ..privacy import path_allowed
 from ..private_config import REPOSITORY
 from ..semantic import semantic_outline_payload
 from .base import ContextRequest, SourceRequest, canonical, coverage, evidence
-from .github_transport import GitHubTransport
 from .notebooks import filter_changed_cells, normalize_text
+
+
+@dataclass
+class ApiResponse:
+    data: object
+    headers: dict[str, str] = field(default_factory=dict)
+    byte_count: int = 0
+
+
+def _retry_after(headers: dict[str, str]) -> int | None:
+    raw = headers.get("retry-after", "")
+    if raw.isdigit():
+        return int(raw)
+    reset = headers.get("x-ratelimit-reset", "")
+    if reset.isdigit():
+        return max(0, int(reset) - int(time.time()))
+    return None
+
+
+def _split_http_response(text: str) -> tuple[int | None, dict[str, str], str]:
+    rest = text
+    status: int | None = None
+    headers: dict[str, str] = {}
+    while rest.startswith("HTTP/") and "\n\n" in rest:
+        head, rest = rest.split("\n\n", 1)
+        lines = head.splitlines()
+        parts = lines[0].split()
+        status = int(parts[1]) if len(parts) >= 2 and parts[1].isdigit() else None
+        headers = {}
+        for line in lines[1:]:
+            if ":" in line:
+                key, value = line.split(":", 1)
+                headers[key.strip().lower()] = value.strip()
+    return status, headers, rest
+
+
+class GhCliClient:
+    def __init__(self, timeout: int = 30, response_limit: int = 16777216):
+        self.timeout = timeout
+        self.response_limit = response_limit
+
+    def get_json(self, path: str, params: dict[str, str] | None = None) -> ApiResponse:
+        if (not isinstance(path, str) or not path.startswith("/repos/")
+                or any(ch.isspace() for ch in path) or ".." in path.split("/")):
+            raise TracefolioError("invalid_repository")
+        endpoint = path + ("?" + urlencode(params) if params else "")
+        try:
+            result = subprocess.run(
+                ["gh", "api", "-i", "-H", "Accept: application/vnd.github+json", endpoint],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=self.timeout,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            raise TracefolioError("github_unavailable", exit_code=3) from None
+        status, headers, body = _split_http_response(result.stdout or "")
+        if status == 429 or (
+            status == 403
+            and (
+                headers.get("x-ratelimit-remaining") == "0"
+                or "rate limit" in (body + (result.stderr or "")).lower()
+            )
+        ):
+            error = TracefolioError("github_rate_limited", exit_code=3)
+            error.retry_after = _retry_after(headers)
+            raise error
+        if status == 404:
+            raise TracefolioError("github_not_found", exit_code=3)
+        if status in {401, 403}:
+            raise TracefolioError("github_not_public", exit_code=3)
+        if result.returncode != 0 or (status is not None and status >= 400):
+            raise TracefolioError("github_unavailable", exit_code=3)
+        body_bytes = len(body.encode("utf-8"))
+        if body_bytes > self.response_limit:
+            raise TracefolioError("github_response_budget", exit_code=3)
+        try:
+            data = json.loads(body)
+        except ValueError:
+            raise TracefolioError("github_invalid_json", exit_code=3) from None
+        return ApiResponse(data=data, headers=headers, byte_count=body_bytes)
 
 
 class GitHubPublicProvider:
     def __init__(self, transport=None):
-        self.api = transport or GitHubTransport()
+        self.api = transport or GhCliClient()
         self._spent = 0
 
     def _get(self, req, path, params=None):

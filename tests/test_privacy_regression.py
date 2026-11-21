@@ -68,7 +68,7 @@ def test_private_surfaces_and_injection_stay_data_through_pipeline(
 
     def guarded_run(args, *positional, **kwargs):
         commands.append(args)
-        assert args[0] in {"git", "powershell.exe"}
+        assert args[0] == "git"
         assert not kwargs.get("shell", False)
         return original_run(args, *positional, **kwargs)
 

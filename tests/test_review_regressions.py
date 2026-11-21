@@ -15,8 +15,7 @@ from tracefolio.investigation import create_packet, extend_packet
 from tracefolio.portfolio import export_portfolio, summarize_portfolio
 from tracefolio.proposals import apply_proposal
 from tracefolio.sources.base import ContextRequest
-from tracefolio.sources.github_public import GitHubPublicProvider
-from tracefolio.sources.github_transport import ApiResponse
+from tracefolio.sources.github_public import ApiResponse, GitHubPublicProvider
 from tracefolio.sources.local_directory import LocalDirectoryProvider
 from tracefolio.sources.local_git import LocalGitProvider
 from tracefolio.state import StateStore

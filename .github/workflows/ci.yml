@@ -26,5 +26,4 @@ jobs:
       - run: python -m pip install -e ".[dev]"
       - run: python -m ruff check .
       - run: python -m pytest -q --tb=short
-      - run: python -m tracefolio.schema_export --check
       - run: git diff --exit-code

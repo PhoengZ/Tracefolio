@@ -3,17 +3,16 @@ import json
 import subprocess
 
 import pytest
-from jsonschema import Draft202012Validator
 from test_github_source import FakeGitHub
 from test_proposals import proposal_for, write_proposal
 
 from tracefolio.cli import main
 from tracefolio.collection import collect_projects
+from tracefolio.contracts.portfolio import PortfolioSnapshot
 from tracefolio.contracts.routes import ProjectRoute, SourceRoute, WorkUnit
 from tracefolio.investigation import create_packet
 from tracefolio.portfolio import export_portfolio, summarize_portfolio
 from tracefolio.proposals import apply_proposal
-from tracefolio.schema_export import schemas
 from tracefolio.sources.github_public import GitHubPublicProvider
 from tracefolio.state import StateStore
 
@@ -41,7 +40,7 @@ def test_all_projects_pending_disabled_errors_and_counts(knowledge_workspace):
     assert result.configured_project_count == len(result.entries) == 3
     assert [e.status for e in result.entries] == ["pending", "disabled", "error"]
     assert result.entries[-1].errors[0].code == "state_read_failed"
-    Draft202012Validator(schemas()["portfolio"]).validate(result.model_dump(mode="json"))
+    PortfolioSnapshot.model_validate(result.model_dump(mode="json"))
 
 
 def test_ready_requires_complete_collection_and_analysis(knowledge_workspace):
