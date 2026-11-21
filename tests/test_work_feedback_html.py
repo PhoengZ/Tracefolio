@@ -82,6 +82,7 @@ def test_work_feedback_html_scripts_pass_js_syntax_check():
             input=script,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
         )
         assert result.returncode == 0, f"Script block #{idx} syntax error:\n{result.stderr}"
@@ -228,6 +229,7 @@ assert.strictEqual(bundle.summary.reviewed, 3);
         })],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     assert result.returncode == 0, f"Node test failed:\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}"
