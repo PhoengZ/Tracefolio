@@ -20,6 +20,6 @@ Numeric evaluation outcomes need actual measurement/evaluation evidence, referen
 
 Keep registry paths, source paths, repository locators, endpoints, packets, proposals, and private artifacts out of tracked files and public responses. Private state may live at the explicitly bound, ignored/untracked `.tracefolio-local/state` location validated by the CLI; registries and source roots remain external. Give logical IDs and safe aggregate results as requested. Never print environment dumps. Use the model provider already selected by the user; Tracefolio itself does not authorize a new integration.
 
-Phase 1 ends at private semantic JSON. No Gmail connection, drafts, messages, job applications, resume/PDF generation, or public uploads. Do not push the repository unless explicitly instructed.
+Ordinary Tracefolio work summarization ends at private semantic JSON (no Gmail connection, drafts, messages, job applications, resume/PDF generation, or public uploads). Only when the user explicitly requests creating or updating a resume, follow [docs/resume-workflow.md](docs/resume-workflow.md) and keep all generated resumes, personal profile inputs, and private resume repositories strictly out of tracked files in this public repository. Do not push any repository unless explicitly instructed.
 
 For development, use Python 3.12+, run Ruff, pytest, and `git diff --check`. Use synthetic fixtures, not the owner's real sources, in tests and CI.

@@ -13,6 +13,12 @@ python -m pip install -e ".[dev]"
 tracefolio --help
 ```
 
+To also install the optional local RenderCV toolchain for explicit LLM-guided resume generation (see [the resume workflow](docs/resume-workflow.md)):
+
+```text
+python -m pip install -e ".[dev,resume]"
+```
+
 If this checkout has a privately prepared, Git-ignored `bindings.local.json`, load it before running the CLI in PowerShell:
 
 ```powershell

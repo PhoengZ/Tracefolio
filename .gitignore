@@ -19,5 +19,8 @@ state/
 packets/
 exports/
 /.tracefolio-local/
+/docs/Resume.pdf
+/resumes/
+/rendercv_output/
 !examples/routes.example.json
 
