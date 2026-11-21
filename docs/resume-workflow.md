@@ -184,10 +184,10 @@ settings:
 
 ## Step 6 — Render PDF & PNG + verification loop
 
-Write the YAML file to the Git-ignored private path `resumes/Resume-<Position>/resume.yaml` and render PDF + PNG:
+Write the YAML file to the Git-ignored private path `resumes/Resume-<Position>/resume.yaml` and render PDF + PNG (note that RenderCV v2.8 resolves `-o` relative to the input YAML file's parent directory):
 
 ```powershell
-./.venv/Scripts/rendercv.exe render resumes/Resume-<Position>/resume.yaml -o resumes/Resume-<Position>/output --dont-generate-markdown --dont-generate-html
+./.venv/Scripts/rendercv.exe render resumes/Resume-<Position>/resume.yaml -o output --dont-generate-markdown --dont-generate-html
 ```
 
 Run all checks before presenting the final PDF to the user:
@@ -255,7 +255,7 @@ jobs:
           for yaml in Resume-*/resume.yaml; do
             dir="$(dirname "$yaml")"
             echo "Rendering $yaml -> $dir/output"
-            rendercv render "$yaml" -o "$dir/output" --dont-generate-markdown --dont-generate-html
+            rendercv render "$yaml" -o output --dont-generate-markdown --dont-generate-html
             png_count=$(find "$dir/output" -maxdepth 1 -name '*.png' | wc -l)
             if [ "$png_count" -ne 1 ]; then
               echo "::error::Expected 1 page for $yaml, found $png_count PNG pages."
