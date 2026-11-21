@@ -2,13 +2,28 @@ import hashlib
 import os
 from pathlib import Path
 
-from ..contracts.common import utc_now
+from ..contracts.common import to_utc, utc_now
 from ..contracts.evidence import CollectionResult, ContextResult, SourceCursor
 from ..errors import TracefolioError
 from ..privacy import mandatory_allowed, path_allowed, resolve_allowed_path, sanitize_text
 from ..semantic import semantic_outline_payload
 from .base import ContextRequest, SourceRequest, coverage, digest, evidence
 from .notebooks import normalize_text
+
+
+def _directory_mtime_bounds(root: str, paths) -> tuple[str | None, str | None, str | None]:
+    mtimes: list[str] = []
+    base = Path(root)
+    for rel in paths:
+        try:
+            ts = to_utc((base / rel).stat().st_mtime)
+            if ts:
+                mtimes.append(ts)
+        except OSError:
+            continue
+    if not mtimes:
+        return None, None, None
+    return min(mtimes), max(mtimes), "filesystem_mtime"
 
 
 class LocalDirectoryProvider:
@@ -151,6 +166,13 @@ class LocalDirectoryProvider:
         else:
             limitations.append("pending_files")
         revision = "sha256:" + digest(inventory)
+        first_at, last_at, activity_src = _directory_mtime_bounds(req.locator, sorted(inventory))
+        if not complete:
+            bounds = [d for d in (previous.first_activity_at, previous.last_activity_at,
+                                  first_at, last_at) if d]
+            first_at = min(bounds) if bounds else None
+            last_at = max(bounds) if bounds else None
+            activity_src = activity_src or previous.activity_source
         cursor = SourceCursor(
             fingerprint=previous.fingerprint,
             head=previous.head if not complete else revision,
@@ -158,6 +180,9 @@ class LocalDirectoryProvider:
             verification_pending=verification,
             inventory=inventory, baseline=baseline if not complete else {},
             observed_at=utc_now(),
+            first_activity_at=first_at,
+            last_activity_at=last_at,
+            activity_source=activity_src,
         )
         return CollectionResult(evidence=records, cursor=cursor,
                                 coverage=coverage(req, revision, not limitations, limitations),

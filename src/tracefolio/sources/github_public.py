@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass, field
 from urllib.parse import quote, urlencode
 
+from ..contracts.common import to_utc
 from ..contracts.evidence import CollectionResult, ContextResult, SourceCursor
 from ..errors import TracefolioError
 from ..privacy import path_allowed
@@ -205,6 +206,30 @@ class GitHubPublicProvider:
             return "other"
         return "unverified"
 
+    def _activity_bounds(self, repo: dict, commit_data: dict | None,
+                         previous: SourceCursor,
+                         observed_dates: list[str] | None = None
+                         ) -> tuple[str | None, str | None, str | None]:
+        candidates: list[str] = [
+            d for d in (previous.first_activity_at, previous.last_activity_at) if d
+        ]
+        repo_created = to_utc(repo.get("created_at"))
+        if repo_created:
+            candidates.append(repo_created)
+        commit_obj = (commit_data or {}).get("commit") if isinstance(commit_data, dict) else None
+        if isinstance(commit_obj, dict):
+            head_date = (to_utc((commit_obj.get("author") or {}).get("date"))
+                         or to_utc((commit_obj.get("committer") or {}).get("date")))
+            if head_date:
+                candidates.append(head_date)
+        valid_observed = [d for d in (to_utc(raw) for raw in (observed_dates or [])) if d]
+        candidates.extend(valid_observed)
+        if not candidates:
+            return previous.first_activity_at, previous.last_activity_at, previous.activity_source
+        src = ("git_commit_dates" if valid_observed and not repo_created
+               else "github_repo_and_head_dates")
+        return min(candidates), max(candidates), src
+
     def _collect_snapshot(self, req: SourceRequest,
                           previous: SourceCursor | None) -> CollectionResult:
         previous = previous or SourceCursor()
@@ -217,7 +242,16 @@ class GitHubPublicProvider:
         commit_data = self._get(req, prefix + "/commits/" + quote(ref, safe="")).data
         current = commit_data["sha"]
         if previous.head == current and not previous.pending and not previous.target:
-            return CollectionResult(cursor=previous, coverage=coverage(req, current, True))
+            cursor = previous
+            if previous.first_activity_at is None or previous.last_activity_at is None:
+                first_at, last_at, src = self._activity_bounds(repo, commit_data, previous)
+                if first_at or last_at:
+                    cursor = previous.model_copy(update={
+                        "first_activity_at": first_at,
+                        "last_activity_at": last_at,
+                        "activity_source": src,
+                    })
+            return CollectionResult(cursor=cursor, coverage=coverage(req, current, True))
         target = previous.target if (previous.target and previous.pending) else current
         limitations, records, invalidated = [], [], []
         tree_data = self._get(req, prefix + "/git/trees/" + target, {"recursive": "1"}).data
@@ -280,6 +314,7 @@ class GitHubPublicProvider:
         if current != target:
             limitations.append("head_changed")
         complete = not pending and not limitations and current == target
+        first_at, last_at, activity_src = self._activity_bounds(repo, commit_data, previous)
         cursor = SourceCursor(
             fingerprint=previous.fingerprint,
             head=previous.head if pending else target,
@@ -287,6 +322,9 @@ class GitHubPublicProvider:
             pending=pending,
             inventory=inventory,
             baseline=baseline if pending else {},
+            first_activity_at=first_at,
+            last_activity_at=last_at,
+            activity_source=activity_src,
         )
         return CollectionResult(
             cursor=cursor, evidence=records, coverage=coverage(req, target, complete, limitations),
@@ -302,9 +340,19 @@ class GitHubPublicProvider:
         ref = req.source.ref
         if ref in {None, "default"}:
             ref = repo["default_branch"]
-        current = self._get(req, prefix + "/commits/" + quote(ref, safe="")).data["sha"]
+        head_commit = self._get(req, prefix + "/commits/" + quote(ref, safe="")).data
+        current = head_commit["sha"]
         if previous.head == current and not previous.target:
-            return CollectionResult(cursor=previous, coverage=coverage(req, current, True))
+            cursor = previous
+            if previous.first_activity_at is None or previous.last_activity_at is None:
+                first_at, last_at, src = self._activity_bounds(repo, head_commit, previous)
+                if first_at or last_at:
+                    cursor = previous.model_copy(update={
+                        "first_activity_at": first_at,
+                        "last_activity_at": last_at,
+                        "activity_source": src,
+                    })
+            return CollectionResult(cursor=cursor, coverage=coverage(req, current, True))
         warnings = []
         active = previous.target is not None
         target = previous.target if active else current
@@ -313,6 +361,7 @@ class GitHubPublicProvider:
         listed = previous.listed_complete if active else False
         base = previous.base_head if active else previous.head
         limitations, records, invalidated = [], [], []
+        observed_dates: list[str] = []
         if not listed:
             try:
                 params = {"per_page": "100", "page": str(page)}
@@ -365,7 +414,10 @@ class GitHubPublicProvider:
                     if len(files) >= 3000:
                         raise TracefolioError("github_file_cap", exit_code=3)
                     message = data["commit"]["message"]
-                    email = data["commit"].get("author", {}).get("email", "")
+                    author_info = data["commit"].get("author", {}) or {}
+                    email = author_info.get("email", "")
+                    if author_info.get("date"):
+                        observed_dates.append(author_info["date"])
                     parents = data.get("parents", [])
                     attribution = ("self" if email.casefold() in req.owner_emails else
                                    "other" if req.owner_emails else "unverified")
@@ -449,11 +501,16 @@ class GitHubPublicProvider:
         if current != target:
             limitations.append("head_changed")
         complete = range_complete and current == target
+        bounds_prev = SourceCursor() if "history_reconciled" in warnings else previous
+        first_at, last_at, activity_src = self._activity_bounds(
+            repo, head_commit, bounds_prev, observed_dates
+        )
         cursor = SourceCursor(
             head=target if range_complete else previous.head,
             target=None if range_complete else target,
             pending=remaining, page=page, listed_complete=listed, base_head=base,
             fingerprint=previous.fingerprint,
+            first_activity_at=first_at, last_activity_at=last_at, activity_source=activity_src,
         )
         return CollectionResult(
             cursor=cursor, evidence=records, coverage=coverage(req, target, complete, limitations),

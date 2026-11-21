@@ -10,12 +10,21 @@ class SafeError(StrictModel):
     code: str
 
 
+class ActivityWindow(StrictModel):
+    first_activity_at: Utc | None = None
+    last_activity_at: Utc | None = None
+    sources: list[Literal[
+        "git_commit_dates", "github_repo_and_head_dates", "filesystem_mtime"
+    ]] = Field(default_factory=list)
+
+
 class PortfolioEntry(StrictModel):
     project_id: Id
     status: Literal["ready", "partial", "pending", "error", "disabled"]
     generation_id: Id | None = None
     project: ProjectRecord | None = None
     works: list[WorkRecord] = Field(default_factory=list)
+    activity_window: ActivityWindow | None = None
     coverage: Coverage | None = None
     errors: list[SafeError] = Field(default_factory=list)
 

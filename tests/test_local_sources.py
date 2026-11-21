@@ -318,3 +318,96 @@ def test_git_snapshot_mode_reads_net_head_and_updates_incrementally(repo):
     assert third.coverage.state == "complete"
     assert [e.source_relative_path for e in third.evidence] == ["main.py"]
 
+
+def test_local_git_captures_and_backfills_activity_window(tmp_path):
+    import os
+
+    from tracefolio.contracts.evidence import SourceCursor
+
+    root = tmp_path / "dated_repo"
+    root.mkdir()
+    git(root, "init", "-q", "-b", "main")
+    git(root, "config", "user.name", "Synthetic Author")
+    git(root, "config", "user.email", "synthetic@example.invalid")
+
+    def dated_commit(content, iso_date, filename="main.py"):
+        (root / filename).write_text(content, encoding="utf-8")
+        git(root, "add", filename)
+        env = {**os.environ, "GIT_AUTHOR_DATE": iso_date, "GIT_COMMITTER_DATE": iso_date}
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "dated"],
+                       env=env, capture_output=True, check=True)
+        return git(root, "rev-parse", "HEAD")
+
+    dated_commit("v = 1\n", "2025-11-05T10:00:00+07:00")
+    head = dated_commit("v = 2\n", "2026-02-14T18:30:00+07:00")
+
+    provider = LocalGitProvider()
+    req = request(root)
+    res = provider.collect_source(req, None)
+    assert res.cursor.first_activity_at == "2025-11-05T03:00:00Z"
+    assert res.cursor.last_activity_at == "2026-02-14T11:30:00Z"
+    assert res.cursor.activity_source == "git_commit_dates"
+
+    # Legacy cursor at same HEAD without timestamps backfills with zero new evidence
+    legacy = SourceCursor(head=head)
+    backfill = provider.collect_source(req, legacy)
+    assert backfill.evidence == []
+    assert backfill.cursor.first_activity_at == "2025-11-05T03:00:00Z"
+    assert backfill.cursor.last_activity_at == "2026-02-14T11:30:00Z"
+    assert backfill.cursor.activity_source == "git_commit_dates"
+
+
+def test_local_directory_captures_mtime_and_portfolio_summarizes_activity_window(tmp_path):
+    import os
+
+    from tracefolio.collection import collect_projects
+    from tracefolio.contracts.routes import ProjectRoute, RouteRegistry
+    from tracefolio.portfolio import brief_portfolio, summarize_portfolio
+    from tracefolio.private_config import ResolvedConfig
+    from tracefolio.state import StateStore
+
+    src = tmp_path / "notes"
+    src.mkdir()
+    f1 = src / "a.py"
+    f2 = src / "b.py"
+    f1.write_text("a = 1\n", encoding="utf-8")
+    f2.write_text("b = 2\n", encoding="utf-8")
+    os.utime(f1, (1762000000, 1762000000))  # 2025-11-01T12:26:40Z
+    os.utime(f2, (1766000000, 1766000000))  # 2025-12-17T19:33:20Z
+
+    state_root = tmp_path / "state"
+    registry = RouteRegistry(
+        state_dir_env="TRACEFOLIO_STATE_DIR",
+        projects=[ProjectRoute(
+            project_id="demo-dir",
+            title="Demo Dir",
+            context="Synthetic directory project",
+            sources=[SourceRoute(
+                source_id="files", kind="local_directory",
+                root_env="TRACEFOLIO_TEST_ROOT", include_paths=["**/*.py"],
+            )],
+        )],
+    )
+    config = ResolvedConfig(
+        registry=registry, state_root=state_root, config_paths=[],
+        locators={("demo-dir", "files"): str(src)},
+        policy=PrivacyPolicy((str(src),)),
+    )
+    report = collect_projects(config, ["demo-dir"])
+    assert not report.partial
+
+    store = StateStore.open(config)
+    snap = summarize_portfolio(store, registry)
+    entry = snap.entries[0]
+    assert entry.activity_window is not None
+    assert entry.activity_window.first_activity_at == "2025-11-01T12:26:40Z"
+    assert entry.activity_window.last_activity_at == "2025-12-17T19:33:20Z"
+    assert entry.activity_window.sources == ["filesystem_mtime"]
+
+    brief = brief_portfolio(snap)
+    assert brief["entries"][0]["activity_window"] == {
+        "first_activity_at": "2025-11-01T12:26:40Z",
+        "last_activity_at": "2025-12-17T19:33:20Z",
+        "sources": ["filesystem_mtime"],
+    }
+

@@ -2,10 +2,26 @@ from pathlib import Path
 
 from .collection import valid_project_fingerprints
 from .contracts.knowledge import WorkRecord
-from .contracts.portfolio import PortfolioEntry, PortfolioSnapshot, SafeError
+from .contracts.portfolio import ActivityWindow, PortfolioEntry, PortfolioSnapshot, SafeError
 from .errors import TracefolioError
 from .private_config import validate_export_path
 from .state import effective_works
+
+
+def _project_activity_window(ledger) -> ActivityWindow | None:
+    firsts = [s.cursor.first_activity_at for s in ledger.sources.values()
+              if s.cursor.first_activity_at]
+    lasts = [s.cursor.last_activity_at for s in ledger.sources.values()
+             if s.cursor.last_activity_at]
+    sources = sorted({s.cursor.activity_source for s in ledger.sources.values()
+                      if s.cursor.activity_source})
+    if not firsts and not lasts:
+        return None
+    return ActivityWindow(
+        first_activity_at=min(firsts) if firsts else None,
+        last_activity_at=max(lasts) if lasts else None,
+        sources=sources,
+    )
 
 
 def summarize_portfolio(store, registry):
@@ -52,7 +68,9 @@ def summarize_portfolio(store, registry):
             entries.append(PortfolioEntry(
                 project_id=route.project_id, status=status,
                 generation_id=generation.generation_id if generation else None,
-                project=project, works=works, coverage=coverage, errors=errors))
+                project=project, works=works,
+                activity_window=_project_activity_window(ledger),
+                coverage=coverage, errors=errors))
         except TracefolioError as error:
             entries.append(PortfolioEntry(project_id=route.project_id, status="error",
                                           errors=[SafeError(code=error.code)]))
@@ -80,6 +98,8 @@ def brief_portfolio(snapshot):
             'project_id': entry.project_id, 'status': entry.status,
             'title': entry.project.title if entry.project else None,
             'summary': entry.project.summary if entry.project else None,
+            'activity_window': (None if entry.activity_window is None
+                                else entry.activity_window.model_dump(mode="json")),
             'works': [w.model_dump(include={
                 'work_id', 'title', 'problem', 'actions', 'implementation_status',
                 'contribution', 'analysis_status', 'review_status', 'unknowns'}) for w in entry.works],

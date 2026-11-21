@@ -12,6 +12,28 @@ def utc_now() -> str:
     return datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
+def to_utc(value: str | float | datetime | None) -> str | None:
+    if value is None or value == "":
+        return None
+    try:
+        if isinstance(value, datetime):
+            dt = value if value.tzinfo else value.replace(tzinfo=UTC)
+        elif isinstance(value, (int, float)):
+            dt = datetime.fromtimestamp(value, tz=UTC)
+        elif isinstance(value, str):
+            text = value.strip()
+            if not text:
+                return None
+            dt = datetime.fromisoformat(text)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=UTC)
+        else:
+            return None
+        return dt.astimezone(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+    except (ValueError, OverflowError, OSError):
+        return None
+
+
 def valid_utc(value: str) -> str:
     if not value.endswith("Z"):
         raise ValueError("UTC Z timestamp required")

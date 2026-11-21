@@ -230,3 +230,34 @@ def test_github_snapshot_mode_uses_tree_and_blobs_without_commit_patches():
     assert not any("/git/blobs/" in p for p, _ in api.calls)
 
 
+def test_github_captures_and_backfills_activity_window():
+    from tracefolio.contracts.evidence import SourceCursor
+
+    api = FakeGitHub()
+    orig = api.get_json
+
+    def dated_get(path, params=None):
+        resp = orig(path, params)
+        if path == "/repos/example/demo":
+            resp.data["created_at"] = "2025-09-10T08:00:00Z"
+        elif path == "/repos/example/demo/commits/main":
+            resp.data["commit"] = {"author": {"date": "2026-03-01T15:45:00Z"}}
+        return resp
+
+    api.get_json = dated_get
+    snap_req = SourceRequest(
+        "demo",
+        SourceRoute(source_id="code", kind="github_public", collection_mode="snapshot",
+                    repository_env="TRACEFOLIO_DEMO_REPO", include_paths=["**/*.py"]),
+        "example/demo", Limits(), PrivacyPolicy(),
+    )
+    provider = GitHubPublicProvider(api)
+    # Legacy cursor at same HEAD backfills timestamps with zero new evidence and zero blob reads
+    legacy = SourceCursor(head=SHA, inventory={"main.py": "blob-main-1"})
+    res = provider.collect_source(snap_req, legacy)
+    assert res.evidence == []
+    assert res.cursor.first_activity_at == "2025-09-10T08:00:00Z"
+    assert res.cursor.last_activity_at == "2026-03-01T15:45:00Z"
+    assert res.cursor.activity_source == "github_repo_and_head_dates"
+
+

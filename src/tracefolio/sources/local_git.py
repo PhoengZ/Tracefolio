@@ -3,6 +3,7 @@ import os
 import subprocess
 from pathlib import Path
 
+from ..contracts.common import to_utc
 from ..contracts.evidence import CollectionResult, ContextResult, SourceCursor
 from ..errors import TracefolioError
 from ..privacy import path_allowed, safe_relative
@@ -120,6 +121,28 @@ class LocalGitProvider:
         outlined = semantic_outline_payload(path, text, limit)
         return outlined, metadata, size, "partial"
 
+    def _activity_bounds(self, req: SourceRequest, target: str,
+                         previous: SourceCursor) -> tuple[str | None, str | None, str | None]:
+        candidates: list[str] = [
+            d for d in (previous.first_activity_at, previous.last_activity_at) if d
+        ]
+        head_raw = git(req, "show", "-s", "--format=%aI", target, optional=True)
+        if head_raw:
+            head_dt = to_utc(head_raw.decode("utf-8", "replace").strip())
+            if head_dt:
+                candidates.append(head_dt)
+        roots_raw = git(req, "rev-list", "--max-parents=0", "--format=%aI", target, optional=True)
+        if roots_raw:
+            for line in roots_raw.decode("utf-8", "replace").splitlines():
+                if line.startswith("commit "):
+                    continue
+                parsed = to_utc(line)
+                if parsed:
+                    candidates.append(parsed)
+        if not candidates:
+            return previous.first_activity_at, previous.last_activity_at, previous.activity_source
+        return min(candidates), max(candidates), "git_commit_dates"
+
     def _collect_snapshot(self, req: SourceRequest,
                           previous: SourceCursor | None) -> CollectionResult:
         self._require_root(req)
@@ -129,7 +152,16 @@ class LocalGitProvider:
         current = git(req, "rev-parse", "--verify", "--end-of-options",
                       f"{req.source.ref or 'HEAD'}^{{commit}}").decode().strip()
         if previous.head == current and not previous.pending and not previous.target:
-            return CollectionResult(cursor=previous, coverage=coverage(req, current, True))
+            cursor = previous
+            if previous.first_activity_at is None or previous.last_activity_at is None:
+                first_at, last_at, src = self._activity_bounds(req, current, previous)
+                if first_at or last_at:
+                    cursor = previous.model_copy(update={
+                        "first_activity_at": first_at,
+                        "last_activity_at": last_at,
+                        "activity_source": src,
+                    })
+            return CollectionResult(cursor=cursor, coverage=coverage(req, current, True))
         target = previous.target if (previous.target and previous.pending) else current
         raw_tree = git(req, "ls-tree", "-r", "-z", target).decode("utf-8", "replace").split("\0")
         tree_blobs: dict[str, str] = {}
@@ -189,6 +221,7 @@ class LocalGitProvider:
         if target != current:
             limitations.append("head_changed")
         complete = not pending and not limitations
+        first_at, last_at, activity_src = self._activity_bounds(req, target, previous)
         cursor = SourceCursor(
             fingerprint=previous.fingerprint,
             head=previous.head if pending else target,
@@ -196,6 +229,9 @@ class LocalGitProvider:
             pending=pending,
             inventory=inventory,
             baseline=baseline if pending else {},
+            first_activity_at=first_at,
+            last_activity_at=last_at,
+            activity_source=activity_src,
         )
         return CollectionResult(
             evidence=records, cursor=cursor,
@@ -218,7 +254,16 @@ class LocalGitProvider:
             target = current
             base = previous.head
             if base == target:
-                return CollectionResult(cursor=previous, coverage=coverage(req, target, True))
+                cursor = previous
+                if previous.first_activity_at is None or previous.last_activity_at is None:
+                    first_at, last_at, src = self._activity_bounds(req, target, previous)
+                    if first_at or last_at:
+                        cursor = previous.model_copy(update={
+                            "first_activity_at": first_at,
+                            "last_activity_at": last_at,
+                            "activity_source": src,
+                        })
+                return CollectionResult(cursor=cursor, coverage=coverage(req, target, True))
             if base and git(req, "merge-base", "--is-ancestor", base, target,
                             optional=True) is None:
                 base = None
@@ -306,9 +351,12 @@ class LocalGitProvider:
             limitations.append("pending_commits")
         if target != current:
             limitations.append("head_changed")
+        bounds_prev = SourceCursor() if "history_reconciled" in warnings else previous
+        first_at, last_at, activity_src = self._activity_bounds(req, target, bounds_prev)
         cursor = SourceCursor(
             fingerprint=previous.fingerprint, head=previous.head if pending else target,
             target=target if pending else None, pending=pending,
+            first_activity_at=first_at, last_activity_at=last_at, activity_source=activity_src,
         )
         return CollectionResult(evidence=records, cursor=cursor,
                                 coverage=coverage(req, target, not limitations, limitations),

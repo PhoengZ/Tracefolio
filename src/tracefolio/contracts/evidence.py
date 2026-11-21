@@ -42,6 +42,11 @@ class SourceCursor(Artifact):
     listed_complete: bool = True
     base_head: str | None = None
     observed_at: Utc | None = None
+    first_activity_at: Utc | None = None
+    last_activity_at: Utc | None = None
+    activity_source: Literal[
+        "git_commit_dates", "github_repo_and_head_dates", "filesystem_mtime"
+    ] | None = None
 
 
 class CollectionResult(StrictModel):

@@ -58,7 +58,9 @@ Synthesize a concise **Target Role Rubric** before touching project selection:
    ./.venv/Scripts/python.exe -m tracefolio.cli summarize --all --view brief --format json
    ```
 
-   - **Automatic join & unmapped-project prompt:** Join each enabled Tracefolio `project_id` with `experiences[].linked_project_ids` and `projects_meta[]` in `resumes/profile.yaml`. If `.tracefolio-local` contains any new enabled `project_id` that is not yet mapped in `resumes/profile.yaml`, briefly ask the user once whether it belongs to an employer or is a Capstone/side project (with role and date range) and record that mapping into `resumes/profile.yaml` so future runs stay in sync automatically.
+   - **Automatic join, project date resolution, & unmapped-project prompt:** Join each enabled Tracefolio `project_id` with `experiences[].linked_project_ids` and `projects_meta[]` in `resumes/profile.yaml`.
+     - If a project in `projects_meta[]` has empty `start_date`/`end_date`, populate defaults from the deterministic `activity_window` (`first_activity_at` → `last_activity_at`, formatted as `YYYY-MM`) returned by `tracefolio summarize`. Note clearly to the user when `activity_window.sources` contains `"filesystem_mtime"` (since non-Git directory modification times can shift after file copies). Always keep **employment** dates in `experiences[]` anchored to `resumes/profile.yaml` (never infer HR employment dates from commits).
+     - If `.tracefolio-local` contains any new enabled `project_id` that is not yet mapped in `resumes/profile.yaml`, briefly ask the user once whether it belongs to an employer or is a Capstone/side project (with role and date range) and record that mapping into `resumes/profile.yaml` so future runs stay in sync automatically.
    - For candidate projects shortlisted against the Step 2 Rubric, inspect deeper claim/action details read-only with:
 
      ```powershell
