@@ -28,6 +28,15 @@ Explicit user instructions override these defaults. Include every requested proj
 
 External state remains supported. For the authorized local location, set `TRACEFOLIO_LOCAL_STATE_CHECKOUT` to the absolute Git top level and the configured state-dir binding to its `.tracefolio-local/state` child. The parent must be Git ignored, entirely untracked, and free of redirecting links; it must not overlap any configured source or registry. The CLI validates this exception. `.gitignore` alone is insufficient for already tracked files. The only export namespace remains `<active-state>/exports`.
 
+## Discovering external public contributor repositories (opt-in)
+
+Only when the user explicitly asks to discover public GitHub repositories owned by other accounts where they contributed, query GitHub read-only through the host `gh api` CLI (never fetch private repositories):
+
+1. Resolve the authenticated login (`gh api user --jq .login`) and check public collaborator/org repositories (`/user/repos?visibility=public&affiliation=collaborator,organization_member`), public authored PRs (`search/issues?q=author:<login>+type:pr+is:public`), and public GraphQL `repositoriesContributedTo(privacy: PUBLIC)` filtered strictly to `private == false` and `owner != <login>`.
+2. Present candidates to the user before editing any external private registry:
+   - Add approved repositories as `github_public` routes in the external private public-registry JSON (with env bindings in `bindings.local.json`), keeping collaborative attribution honest per [docs/authorship-workflow.md](authorship-workflow.md).
+   - For any discovered repository the user explicitly wants to **ignore permanently**, register a disabled entry (`"enabled": false`) in the private registry (never hardcode personal repository names in tracked files in `tracfolio`). Disabled routes are never resolved, collected, or summarized in future runs.
+
 ## Token-efficient incremental analysis
 
 Reuse existing summaries and inspect pending evidence only. Use compact packet aliases for references and wildcard accounting instead of copying long hashes into every proposal. Cite representative sufficient evidence in claims and provenance, not every history record. Detect duplicate patch operations before interpreting compact-format records as new behavior; matching filenames or commit messages alone do not establish duplication. Preserve stable work IDs and unchanged semantic content. Summaries should expose coverage and unknowns, not dump raw packets or historical diffs into the user response. Do not claim a token-saving percentage without an actual measurement.
