@@ -94,8 +94,11 @@ Install the optional local RenderCV toolchain once inside `.venv` if not already
 
 ### Style rules (modeled on `.superpowers/Resume ตัวอย่าง.jpg`)
 
-- **Single-column classic serif ATS layout:** Use RenderCV `design.theme: harvard` (serif `XCharter` font, centered name/contact header, centered bold ALL-CAPS section headers with horizontal rules, left-aligned titles/roles, right-aligned dates/locations).
-- **Strict 1-page budget:** Disable footer and top note (`show_footer: false`, `show_top_note: false`), use balanced margins (`0.45in`–`0.5in`), and use bold lead-in topic labels (`**Topic:** ...`) in bullet points when grouping responsibilities cleanly.
+- **Single-column classic serif ATS layout:** Use RenderCV `design.theme: harvard` (serif `XCharter` font, centered name/contact header with `display_urls_instead_of_usernames: true`, centered bold ALL-CAPS section keys `EDUCATION`, `EXPERIENCE`, `PROJECTS`, `TECHNICAL SKILLS` with full-width `0.6pt` horizontal rules, left-aligned titles/roles, right-aligned dates with `locale.present: Present`).
+- **Mandatory baseline typography & 1-page geometry:** Start every resume from these verified font sizes and margins so output stays consistent across LLM harnesses:
+  - **Page:** `size: us-letter`, `top_margin: 0.38in`, `bottom_margin: 0.38in`, `left_margin: 0.45in`, `right_margin: 0.45in`, `show_footer: false`, `show_top_note: false`
+  - **Font sizes & spacing:** `body: 9pt` (only tune within `8.8pt`–`9.2pt` if needed for 1-page balance; never go below `8.8pt`), `name: 19pt`, `connections: 8.3pt`, `section_titles: 1.12em`, `line_spacing: 0.48em`
+  - **Templates & bullets:** Override `education_entry` with `degree_column: ""` (prevents duplicating degree abbreviations) and `experience_entry` with `**COMPANY** — *POSITION* (LOCATION)`. Use bold lead-in topic labels (`**Topic:** ...`) in highlights.
 - **Mandatory exclusion:** **NEVER include citizenship, visa, or work-authorization statements** (specifically omit footer notes like `Not a US Citizen; Approved I-140; Require H1-B transfer` from the reference image).
 
 ### Synthetic RenderCV v2.8 YAML template
@@ -116,16 +119,16 @@ cv:
     - network: LinkedIn
       username: janedoe
   sections:
-    education:
+    EDUCATION:
       - institution: Example University
         area: Computer Engineering
-        degree: B.Eng.
+        degree: Bachelor of Engineering
         start_date: 2023-08
         end_date: 2027-05
         location: Bangkok, Thailand
         highlights:
-          - "GPAX: 3.85"
-    experience:
+          - "**Expected Graduation:** 2027 | **GPAX:** 3.85"
+    EXPERIENCE:
       - company: Example Corp
         position: Software Engineer Intern
         start_date: 2026-06
@@ -133,14 +136,13 @@ cv:
         location: Bangkok, Thailand
         highlights:
           - "**Backend Architecture:** Designed event-driven microservices in Go and RabbitMQ with deterministic validation."
-    projects:
-      - name: Example Project
+    PROJECTS:
+      - name: Example Project — Role (Project Category)
         start_date: 2026-08
         end_date: present
-        summary: Short role or architectural summary
         highlights:
           - "**Core Implementation:** Built modular pipeline with automated CI quality gates."
-    technical_skills:
+    TECHNICAL SKILLS:
       - label: Core Stack
         details: Python, Go, TypeScript, PostgreSQL, Docker, GitHub Actions
       - label: Languages
@@ -149,31 +151,56 @@ design:
   theme: harvard
   page:
     size: us-letter
-    top_margin: 0.45in
-    bottom_margin: 0.45in
-    left_margin: 0.5in
-    right_margin: 0.5in
+    top_margin: 0.38in
+    bottom_margin: 0.38in
+    left_margin: 0.45in
+    right_margin: 0.45in
     show_footer: false
     show_top_note: false
   typography:
+    line_spacing: 0.48em
     font_size:
-      body: 9.5pt
-      name: 20pt
-      connections: 9pt
-      section_titles: 1.15em
+      body: 9pt
+      name: 19pt
+      connections: 8.3pt
+      section_titles: 1.12em
+  header:
+    space_below_name: 0.18cm
+    space_below_connections: 0.22cm
+    connections:
+      display_urls_instead_of_usernames: true
+      space_between_connections: 0.25cm
   section_titles:
     type: centered_with_full_line
-    line_thickness: 0.5pt
-    space_above: 0.35cm
-    space_below: 0.15cm
+    line_thickness: 0.6pt
+    space_above: 0.24cm
+    space_below: 0.11cm
   sections:
-    space_between_regular_entries: 0.7em
-    space_between_text_based_entries: 0.25em
+    space_between_regular_entries: 0.44em
+    space_between_text_based_entries: 0.16em
   entries:
     highlights:
-      space_between_items: 0.15em
+      space_left: 0.14cm
+      space_above: 0.04cm
+      space_between_items: 0.09em
+  templates:
+    education_entry:
+      main_column: |-
+        **INSTITUTION** — LOCATION
+        *DEGREE_WITH_AREA*
+        SUMMARY
+        HIGHLIGHTS
+      degree_column: ""
+      date_and_location_column: DATE
+    experience_entry:
+      main_column: |-
+        **COMPANY** — *POSITION* (LOCATION)
+        SUMMARY
+        HIGHLIGHTS
+      date_and_location_column: DATE
 locale:
   language: english
+  present: Present
 settings:
   render_command:
     dont_generate_markdown: true
