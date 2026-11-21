@@ -92,3 +92,19 @@ Private state can optionally live at the validated Git-ignored `.tracefolio-loca
 ## Offline work feedback workbench
 
 Open [tools/work-feedback.html](tools/work-feedback.html) directly in a local browser (offline only, no network calls) to review works without inspecting raw JSON by hand. It accepts `.jsonl` files (such as the synthetic [examples/works.example.jsonl](examples/works.example.jsonl)), `summarize --all --format json` / `--view brief` portfolio JSON, individual `works/*.json` files, folder uploads, or pasted JSON/JSONL, and exports structured feedback (`.jsonl` / `.json`) with correctness/ownership verdicts and reasons.
+
+## Optional resume generation (private local checkout)
+
+Tracefolio keeps personal career details and generated resumes strictly out of this public repository. To enable explicit LLM-guided resume generation using your saved `.tracefolio-local` work knowledge and [RenderCV](https://rendercv.com/):
+
+1. Install the optional RenderCV toolchain into `.venv`:
+
+   ```text
+   python -m pip install -e ".[dev,resume]"
+   ```
+
+2. Clone or initialize your own **private** resume repository inside the Git-ignored `resumes/` directory at the repository root (for example, `git clone <your-private-resume-repo> resumes`).
+3. Copy [the synthetic profile example](examples/profile.example.yaml) to `resumes/profile.yaml` and fill in your personal contact details, education, employment records, and `linked_project_ids` (matching your Tracefolio `project_id`s).
+4. Follow [the resume generation workflow](docs/resume-workflow.md): the agent asks for your target role first, researches current role criteria via web search, joins `resumes/profile.yaml` with read-only `tracefolio summarize` evidence, and renders a 1-page ATS PDF/PNG into `resumes/Resume-<Position>/`.
+
+Because `/resumes/`, `/docs/Resume.pdf`, and `/rendercv_output/` are Git-ignored in this public checkout, personal profile data and generated PDFs stay private to your machine and your separate private resume repository.

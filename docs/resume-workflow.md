@@ -44,11 +44,13 @@ Synthesize a concise **Target Role Rubric** before touching project selection:
 
 ## Step 3 — Load private inputs (read-only)
 
-1. **Baseline personal profile:** Read the local Git-ignored `docs/Resume.pdf` (or another private resume path provided by the user) to extract:
-   - Candidate header/contact links (name, location, phone, email, GitHub, LinkedIn, portfolio)
-   - Education (institution, degree, graduation timeline, GPA)
-   - Prior work experience timeline and user-asserted baseline bullets
-   - Languages and baseline skills
+1. **Primary Career & Identity Config (`resumes/profile.yaml`):** Read the local Git-ignored `resumes/profile.yaml` (modeled on [examples/profile.example.yaml](../examples/profile.example.yaml)) as the canonical source of truth for personal/employment metadata:
+   - Candidate header/contact links (`basics`: name, location, phone, email, website/portfolio, GitHub, LinkedIn)
+   - Education (`education`: institution, degree, graduation timeline, GPAX)
+   - Employment records (`experiences`: company, position, start/end dates, location, `linked_project_ids`, and `manual_highlights` for user-asserted metrics or roles without local repositories)
+   - Non-company project metadata (`projects_meta`: Capstone, open-source, or side-project roles, categories, dates, and URLs linked to Tracefolio `project_id`s)
+   - Baseline skills, languages, and awards
+   - **One-time bootstrap fallback:** Only if `resumes/profile.yaml` does not exist yet, read the local Git-ignored `docs/Resume.pdf` (or another user-provided baseline resume) to bootstrap `resumes/profile.yaml` and ask the user to verify extracted fields (especially hidden hyperlinks such as Portfolio URLs) before reusing it.
 2. **Saved Tracefolio work knowledge:** Load local bindings and query saved summaries read-only in a single PowerShell invocation:
 
    ```powershell
@@ -56,6 +58,7 @@ Synthesize a concise **Target Role Rubric** before touching project selection:
    ./.venv/Scripts/python.exe -m tracefolio.cli summarize --all --view brief --format json
    ```
 
+   - **Automatic join & unmapped-project prompt:** Join each enabled Tracefolio `project_id` with `experiences[].linked_project_ids` and `projects_meta[]` in `resumes/profile.yaml`. If `.tracefolio-local` contains any new enabled `project_id` that is not yet mapped in `resumes/profile.yaml`, briefly ask the user once whether it belongs to an employer or is a Capstone/side project (with role and date range) and record that mapping into `resumes/profile.yaml` so future runs stay in sync automatically.
    - For candidate projects shortlisted against the Step 2 Rubric, inspect deeper claim/action details read-only with:
 
      ```powershell

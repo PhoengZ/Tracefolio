@@ -1,0 +1,75 @@
+# Synthetic example only. Copy to the Git-ignored private `resumes/profile.yaml`
+# inside your private resume repository and replace every placeholder with real data.
+
+basics:
+  name: Jane Doe
+  location: Bangkok, Thailand
+  email: jane.doe@example.com
+  phone: "+66-80-000-0000"
+  website: https://example.com
+  github: janedoe
+  linkedin: janedoe
+
+education:
+  - institution: Example University
+    area: Computer Engineering
+    degree: B.Eng.
+    start_date: 2023-08
+    end_date: 2027-05
+    location: Bangkok, Thailand
+    highlights:
+      - "Expected Graduation: 2027, GPAX: 3.85"
+
+experiences:
+  - company: Example Tech Co.
+    position: AI Solutions Engineer Intern
+    start_date: 2026-06
+    end_date: present
+    location: Bangkok, Thailand
+    # Join this employment record with Tracefolio project_ids automatically:
+    linked_project_ids:
+      - demo-ingestion
+    # Optional user-asserted facts/metrics or highlights for work without a local repo:
+    manual_highlights:
+      - "Collaborated with product teams to scope workflow automation requirements."
+
+  - company: Example Bank (No Local Repo)
+    position: Automation Engineer Intern
+    start_date: 2025-06
+    end_date: 2025-07
+    location: Bangkok, Thailand
+    linked_project_ids: []
+    manual_highlights:
+      - "Built internal document-retrieval workflow and automated routing pipelines."
+
+# Metadata for non-company projects (Capstone, Open Source, Side Projects) tracked in Tracefolio
+projects_meta:
+  - project_id: demo-service
+    display_name: Example Service Platform
+    role: Backend Lead (Capstone Project)
+    category: Capstone Project
+    start_date: 2026-01
+    end_date: present
+    url: https://github.com/janedoe/example-service
+    manual_highlights: []
+
+skills_baseline:
+  ai_and_agents:
+    - Multi-Agent Systems
+    - RAG / Hybrid Search
+    - LLM Evaluation & Guardrails
+  languages_and_backend:
+    - Python
+    - Go
+    - TypeScript
+    - FastAPI
+  data_cloud_and_devops:
+    - PostgreSQL
+    - Docker
+    - GitHub Actions
+
+languages:
+  - "Thai (Native)"
+  - "English (Conversational Proficiency)"
+
+awards: []
