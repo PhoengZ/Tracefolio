@@ -1,5 +1,6 @@
 import base64
 import copy
+import subprocess
 
 import pytest
 
@@ -7,8 +8,7 @@ from tracefolio.contracts.routes import Limits, SourceRoute
 from tracefolio.errors import TracefolioError
 from tracefolio.privacy import PrivacyPolicy
 from tracefolio.sources.base import SourceRequest
-from tracefolio.sources.github_public import GitHubPublicProvider
-from tracefolio.sources.github_transport import ApiResponse, GitHubTransport, StrictRedirect
+from tracefolio.sources.github_public import ApiResponse, GhCliClient, GitHubPublicProvider
 
 SHA = "a" * 40
 OLDER = "b" * 40
@@ -83,23 +83,19 @@ def test_public_commit_message_diff_and_unknown_authorship():
     assert result.cursor.head == SHA
 
 
-def test_rate_limit_retains_safe_retry_after_without_http_body():
-    from email.message import Message
-    from urllib.error import HTTPError
-    transport = GitHubTransport()
-    headers = Message()
-    headers["Retry-After"] = "60"
+def test_rate_limit_retains_safe_retry_after_without_http_body(monkeypatch):
+    def fake_run(cmd, **kwargs):
+        assert cmd[:3] == ["gh", "api", "-i"]
+        raw = "HTTP/2.0 429 Too Many Requests\nRetry-After: 60\n\n{\"message\":\"PRIVATE_HTTP_BODY\"}"
+        return subprocess.CompletedProcess(cmd, 1, stdout=raw, stderr="PRIVATE_STDERR")
 
-    class FailingOpener:
-        def open(self, request, timeout):
-            assert not request.has_header("Authorization")
-            raise HTTPError(request.full_url, 429, "PRIVATE_HTTP_BODY", headers, None)
-
-    transport.opener = FailingOpener()
+    monkeypatch.setattr(subprocess, "run", fake_run)
     with pytest.raises(TracefolioError) as caught:
-        transport.get_json("/repos/example/demo", {})
+        GhCliClient().get_json("/repos/example/demo", {})
+    assert caught.value.code == "github_rate_limited"
     assert caught.value.retry_after == 60
     assert "PRIVATE_HTTP_BODY" not in str(caught.value)
+    assert "PRIVATE_STDERR" not in str(caught.value)
 
 
 def test_history_and_detail_pagination_preserve_coverage():
@@ -154,12 +150,32 @@ def test_invalid_repository_rejected(locator):
         GitHubPublicProvider(FakeGitHub()).collect_source(request, None)
 
 
-def test_transport_rejects_external_redirect_and_credentials():
-    with pytest.raises(TracefolioError):
-        GitHubTransport().get_json("https://evil.invalid/secret", {})
-    with pytest.raises(TracefolioError):
-        StrictRedirect().redirect_request(None, None, 302, "move", {},
-                                          "https://evil.invalid/secret")
+def test_gh_client_parses_headers_and_rejects_invalid_paths(monkeypatch):
+    with pytest.raises(TracefolioError, match="invalid_repository"):
+        GhCliClient().get_json("https://evil.invalid/secret", {})
+    with pytest.raises(TracefolioError, match="invalid_repository"):
+        GhCliClient().get_json("/repos/example/../secret", {})
+
+    def ok_run(cmd, **kwargs):
+        assert cmd[-1] == "/repos/example/demo/commits?page=1"
+        raw = (
+            "HTTP/2.0 200 OK\n"
+            "Link: <https://api.github.com/next>; rel=\"next\"\n\n"
+            "[{\"sha\":\"abc\"}]"
+        )
+        return subprocess.CompletedProcess(cmd, 0, stdout=raw, stderr="")
+
+    monkeypatch.setattr(subprocess, "run", ok_run)
+    response = GhCliClient().get_json("/repos/example/demo/commits", {"page": "1"})
+    assert response.data == [{"sha": "abc"}]
+    assert 'rel="next"' in response.headers["link"]
+
+    def missing_gh(cmd, **kwargs):
+        raise FileNotFoundError("gh")
+
+    monkeypatch.setattr(subprocess, "run", missing_gh)
+    with pytest.raises(TracefolioError, match="github_unavailable"):
+        GhCliClient().get_json("/repos/example/demo", {})
 
 
 def test_rate_limit_stops_requests_and_preserves_remaining_queue():

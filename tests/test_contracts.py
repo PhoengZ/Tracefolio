@@ -1,12 +1,13 @@
 import copy
 
 import pytest
-from jsonschema import Draft202012Validator, FormatChecker
 from pydantic import ValidationError
 
+from tracefolio.contracts.evidence import CollectionManifest, EvidenceRecord
 from tracefolio.contracts.knowledge import ProjectRecord, WorkRecord
+from tracefolio.contracts.packets import AnalysisProposal, InvestigationPacket
+from tracefolio.contracts.portfolio import PortfolioSnapshot
 from tracefolio.contracts.routes import RouteRegistry
-from tracefolio.schema_export import schemas
 
 
 @pytest.mark.parametrize("field", ["root", "url", "token"])
@@ -28,11 +29,20 @@ def test_unknown_fields_rejected(route_payload):
         RouteRegistry.model_validate(route_payload)
 
 
-def test_all_artifacts_have_version():
-    for name, schema in schemas().items():
-        assert schema["properties"]["schema_version"]["const"] == "1.0.0", name
-        assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
-        Draft202012Validator.check_schema(schema)
+def test_all_contract_models_have_schema_version():
+    models = (
+        RouteRegistry,
+        EvidenceRecord,
+        CollectionManifest,
+        InvestigationPacket,
+        AnalysisProposal,
+        ProjectRecord,
+        WorkRecord,
+        PortfolioSnapshot,
+    )
+    for model in models:
+        schema = model.model_json_schema()
+        assert schema["properties"]["schema_version"]["const"] == "1.0.0", model.__name__
 
 
 def test_utc_timestamps_and_enums(example_records):
@@ -46,11 +56,9 @@ def test_utc_timestamps_and_enums(example_records):
         WorkRecord.model_validate(work)
 
 
-def test_project_and_work_validate_in_both_engines(example_records):
-    for name, cls, data in zip(("project", "work"), (ProjectRecord, WorkRecord),
-                               example_records):
+def test_project_and_work_examples_validate(example_records):
+    for cls, data in zip((ProjectRecord, WorkRecord), example_records):
         assert cls.model_validate(data).language == "en"
-        Draft202012Validator(schemas()[name], format_checker=FormatChecker()).validate(data)
 
 
 def test_unsupported_version_and_source_kinds_fail(route_payload):

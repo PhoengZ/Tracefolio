@@ -2,7 +2,7 @@
 
 For requests to summarize or update configured work, follow [docs/harness-workflow.md](docs/harness-workflow.md). A request to show or summarize saved work (including "again") reads `summarize --all --view brief`; it does not authorize collection or analysis. Update/refresh/latest requests use `status` and incremental collection for the requested scope. Never schedule analysis from `partial`, exit code 3, or `new_evidence` alone. Use installed Tracefolio CLI operations and private environment bindings. Prefer `--mode snapshot` (`collection_mode: "snapshot"`) with packet `semantic_map` when whole-project HEAD understanding is needed or commit-history collection hits diff/content/patch limits. Do not inspect arbitrary neighboring directories to discover additional projects.
 
-After anonymous GitHub rate limits, use the connected GitHub plugin or an authenticated `gh api` CLI relay only when the user has authorized that route, following [docs/github-plugin-workflow.md](docs/github-plugin-workflow.md). Use the opt-in `--github-plugin` CLI bridge with bidirectional pipes; preserve public visibility checks, configured scope and private redaction. Never fetch further private content or fall back to an unconfigured local clone. A connected plugin or installed `gh` CLI is not implicit authorization.
+Public GitHub sources (`github_public`) query GitHub through the host's `gh api` CLI while preserving public visibility checks (`private == false`), configured scope, and private redaction. Never fetch private repositories or fall back to an unconfigured local clone.
 
 When this checkout has the Git-ignored `bindings.local.json`, load it with `. ./load-config.ps1` in the same PowerShell invocation as the CLI commands. Use `./.venv/Scripts/python.exe -m tracefolio.cli` so virtual-environment activation is unnecessary. Environment loading does not persist across separate tool processes; reload for each invocation. This local bindings file selects the approved external registries and private state. Do not print or track its contents.
 
@@ -22,4 +22,4 @@ Keep registry paths, source paths, repository locators, endpoints, packets, prop
 
 Phase 1 ends at private semantic JSON. No Gmail connection, drafts, messages, job applications, resume/PDF generation, or public uploads. Do not push the repository unless explicitly instructed.
 
-For development, use Python 3.12+, run Ruff, pytest, schema drift checks, and `git diff --check`. Use synthetic fixtures, not the owner's real sources, in tests and CI.
+For development, use Python 3.12+, run Ruff, pytest, and `git diff --check`. Use synthetic fixtures, not the owner's real sources, in tests and CI.

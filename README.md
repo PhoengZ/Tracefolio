@@ -48,7 +48,7 @@ Select exactly one of:
 - `TRACEFOLIO_CONFIG`: one absolute private registry filename.
 - `TRACEFOLIO_CONFIG_FILES`: a JSON array of absolute private registry filenames.
 
-For multiple registries, unset `TRACEFOLIO_CONFIG` first. Shared owner/privacy/budget settings must match; duplicate projects are rejected. Selecting only the public registry needs no local bindings. Disabled projects do not resolve bindings or read sources. Public GitHub uses anonymous HTTPS by default and never automatically switches to authentication or a local clone. After a rate limit, a user-authorized connected GitHub plugin can feed public GET responses through the opt-in `--github-plugin` bridge for collection and scoped context. It needs bidirectional pipes, adds no API token or Python MCP dependency, and retains public-only visibility checks. See [the plugin workflow and machine protocol](docs/github-plugin-workflow.md).
+For multiple registries, unset `TRACEFOLIO_CONFIG` first. Shared owner/privacy/budget settings must match; duplicate projects are rejected. Selecting only the public registry needs no local bindings. Disabled projects do not resolve bindings or read sources. Public GitHub sources read directly through the host's authenticated `gh api` CLI while preserving public-only visibility checks (`private == false`), configured scope, and private redaction.
 
 ## Use
 
@@ -75,14 +75,13 @@ Acceptance prompt for the agent working in this checkout:
 ```text
 python -m ruff check .
 python -m pytest -q
-python -m tracefolio.schema_export --check
 ```
 
-Tests use synthetic local repositories and a fake GitHub transport. Windows and Linux CI are configured; consult actual CI results before claiming a platform passed. Anonymous GitHub limits, missing patches, large files, rewritten history, and bounded packets can leave coverage partial. Notebooks contribute code/Markdown cells only, without execution or saved outputs. No measured impact is inferred from a successful training script.
+Tests use synthetic local repositories and a fake GitHub API client. Windows and Linux CI are configured; consult actual CI results before claiming a platform passed. GitHub API limits, missing patches, large files, rewritten history, and bounded packets can leave coverage partial. Notebooks contribute code/Markdown cells only, without execution or saved outputs. No measured impact is inferred from a successful training script.
 
-Read [security boundaries](docs/security.md), [schemas and state](docs/schema.md), and [manual acceptance](docs/manual-acceptance.md). Private source content may still be confidential after heuristic redaction. Your chosen external harness may transmit packets to its model provider.
+Read [security boundaries](docs/security.md) and [the harness workflow](docs/harness-workflow.md). Private source content may still be confidential after heuristic redaction. Your chosen external harness may transmit packets to its model provider.
 
-Private state can optionally live at the validated Git-ignored `.tracefolio-local/state` location under an explicitly bound checkout. Registries remain external. See [migration and recovery](docs/harness-workflow.md#repository-local-private-state-and-migration).
+Private state can optionally live at the validated Git-ignored `.tracefolio-local/state` location under an explicitly bound checkout. Registries remain external. See [repository-local private state](docs/harness-workflow.md#repository-local-private-state).
 
 ## Offline work feedback workbench
 

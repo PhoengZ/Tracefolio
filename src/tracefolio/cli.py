@@ -1,7 +1,6 @@
 import argparse
 import json
 import sys
-from pathlib import Path
 
 from .collection import collect_projects
 from .errors import TracefolioError
@@ -10,8 +9,6 @@ from .portfolio import brief_portfolio, export_portfolio, summarize_portfolio
 from .private_config import load_config_set, selected_config_paths
 from .proposals import apply_proposal
 from .sources.base import ContextRequest
-from .sources.github_plugin_transport import GitHubPluginTransport
-from .sources.github_public import GitHubPublicProvider
 from .state import StateStore
 from .status import inspect_project
 
@@ -33,8 +30,6 @@ def parser():
     select.add_argument("--project", action="append")
     collect.add_argument("--mode", choices=["commits", "snapshot"],
                          help="Override source collection mode (commits or whole-project snapshot).")
-    collect.add_argument("--github-plugin", action="store_true",
-                         help="Relay public GitHub GET requests over harness-owned JSONL stdio.")
     packet = commands.add_parser("packet")
     create = packet.add_subparsers(dest="packet_command", required=True).add_parser("create")
     create.add_argument("--project", required=True)
@@ -42,8 +37,6 @@ def parser():
     context = commands.add_parser("context")
     for option in ("packet", "source", "revision", "path"):
         context.add_argument("--" + option, required=True)
-    context.add_argument("--github-plugin", action="store_true",
-                         help="Relay scoped public GitHub context reads over JSONL stdio.")
     apply = commands.add_parser("apply")
     apply.add_argument("--proposal", required=True)
     summary = commands.add_parser("summarize")
@@ -57,13 +50,6 @@ def parser():
     select = status.add_mutually_exclusive_group(required=True)
     select.add_argument("--all", action="store_true")
     select.add_argument("--project", action="append")
-    state = commands.add_parser('state')
-    migrate = state.add_subparsers(dest='state_command', required=True).add_parser('migrate')
-    migrate.add_argument('--to-checkout', type=Path, required=True)
-    migrate.add_argument('--bindings', type=Path, required=True)
-    mode = migrate.add_mutually_exclusive_group()
-    mode.add_argument('--dry-run', action='store_true')
-    mode.add_argument('--recover', choices=['resume', 'rollback'])
     return root
 
 
@@ -76,22 +62,13 @@ def main(argv=None) -> int:
     try:
         args = parser().parse_args(argv)
         config = load_config_set(selected_config_paths())
-        providers = ({"github_public": GitHubPublicProvider(GitHubPluginTransport())}
-                     if getattr(args, "github_plugin", False) else None)
         if args.command == "config":
             emit({"status": "valid", "configured_project_count": len(config.registry.projects),
                   "enabled_project_count": sum(p.enabled for p in config.registry.projects)})
             return 0
-        if args.command == 'state':
-            from .migration import migrate_state, recover_migration
-            result = (recover_migration(config, args.to_checkout, args.bindings, mode=args.recover)
-                      if args.recover else migrate_state(config, args.to_checkout, args.bindings,
-                                                        dry_run=args.dry_run))
-            emit(result)
-            return 0
         if args.command == "collect":
             ids = [p.project_id for p in config.registry.projects] if args.all else args.project
-            result = collect_projects(config, ids, providers=providers, mode=args.mode)
+            result = collect_projects(config, ids, mode=args.mode)
             emit(result.as_dict())
             return 3 if result.partial else 0
         read_only = args.command == 'status' or (args.command == 'summarize' and not args.out)
@@ -122,7 +99,7 @@ def main(argv=None) -> int:
             packet = store.read_packet(args.packet)
             req = store.source_request(packet.project_id, args.source)
             result = extend_packet(store, ContextRequest(req, args.revision,
-                                                        args.path, args.packet), providers=providers)
+                                                        args.path, args.packet))
         else:
             raise TracefolioError("invalid_arguments")
         emit(result.as_dict())
