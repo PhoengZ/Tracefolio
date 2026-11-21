@@ -58,8 +58,9 @@ Synthesize a concise **Target Role Rubric** before touching project selection:
    ./.venv/Scripts/python.exe -m tracefolio.cli summarize --all --view brief --format json
    ```
 
-   - **Automatic join, project date resolution, & unmapped-project prompt:** Join each enabled Tracefolio `project_id` with `experiences[].linked_project_ids` and `projects_meta[]` in `resumes/profile.yaml`.
+   - **Automatic join, project date resolution, public project URLs, & unmapped-project prompt:** Join each enabled Tracefolio `project_id` with `experiences[].linked_project_ids` and `projects_meta[]` in `resumes/profile.yaml`.
      - If a project in `projects_meta[]` has empty `start_date`/`end_date`, populate defaults from the deterministic `activity_window` (`first_activity_at` → `last_activity_at`, formatted as `YYYY-MM`) returned by `tracefolio summarize`. Note clearly to the user when `activity_window.sources` contains `"filesystem_mtime"` (since non-Git directory modification times can shift after file copies). Always keep **employment** dates in `experiences[]` anchored to `resumes/profile.yaml` (never infer HR employment dates from commits).
+     - **Public-only project URLs:** Only link verified **public** repositories (`private == false`) or public websites in `projects_meta[].url`—never link private/local repositories (`local_git`, `local_directory`, or any private GitHub repo). If a `github_public` project in `projects_meta[]` has an empty `url`, you may read its `repository_env` binding from the local Git-ignored `bindings.local.json`, confirm `private == false` via `gh api /repos/<owner>/<repo>`, and persist `https://github.com/<owner>/<repo>` into the private `resumes/profile.yaml` (never into tracked files in `tracfolio`).
      - If `.tracefolio-local` contains any new enabled `project_id` that is not yet mapped in `resumes/profile.yaml`, briefly ask the user once whether it belongs to an employer or is a Capstone/side project (with role and date range) and record that mapping into `resumes/profile.yaml` so future runs stay in sync automatically.
    - For candidate projects shortlisted against the Step 2 Rubric, inspect deeper claim/action details read-only with:
 
@@ -109,7 +110,8 @@ Install the optional local RenderCV toolchain once inside `.venv` if not already
 - **Mandatory baseline typography & 1-page geometry:** Start every resume from these verified font sizes and margins so output stays consistent across LLM harnesses:
   - **Page:** `size: us-letter`, `top_margin: 0.38in`, `bottom_margin: 0.38in`, `left_margin: 0.45in`, `right_margin: 0.45in`, `show_footer: false`, `show_top_note: false`
   - **Font sizes & spacing:** `body: 9pt` (only tune within `8.8pt`–`9.2pt` if needed for 1-page balance; never go below `8.8pt`), `name: 19pt`, `connections: 8.3pt`, `section_titles: 1.12em`, `line_spacing: 0.48em`
-  - **Templates & bullets:** Override `education_entry` with `degree_column: ""` (prevents duplicating degree abbreviations) and `experience_entry` with `**COMPANY** — *POSITION* (LOCATION)`. Use bold lead-in topic labels (`**Topic:** ...`) in highlights.
+  - **Templates, links & bullets:** Override `education_entry` with `degree_column: ""` (prevents duplicating degree abbreviations) and `experience_entry` with `**COMPANY** — *POSITION* (LOCATION)`. Use bold lead-in topic labels (`**Topic:** ...`) in highlights.
+  - **Clickable public project links (no underline):** Whenever a selected project in `PROJECTS` has a verified public `url` in `resumes/profile.yaml` (`projects_meta[].url`), format its `name` as a Markdown hyperlink **`[Project Name](https://...) — Role (Category)`** so clicking the title in the PDF opens the public repo or site. Set `design.links.underline: false` and `design.links.show_external_link_icon: false` so links stay visually clean while remaining clickable. Leave private/local projects as plain text without URLs.
 - **Mandatory exclusion:** **NEVER include citizenship, visa, or work-authorization statements** (specifically omit footer notes like `Not a US Citizen; Approved I-140; Require H1-B transfer` from the reference image).
 
 ### Synthetic RenderCV v2.8 YAML template
@@ -148,7 +150,7 @@ cv:
         highlights:
           - "**Backend Architecture:** Designed event-driven microservices in Go and RabbitMQ with deterministic validation."
     PROJECTS:
-      - name: Example Project — Role (Project Category)
+      - name: "[Example Project](https://github.com/janedoe/example-project) — Role (Project Category)"
         start_date: 2026-08
         end_date: present
         highlights:
@@ -175,6 +177,9 @@ design:
       name: 19pt
       connections: 8.3pt
       section_titles: 1.12em
+  links:
+    underline: false
+    show_external_link_icon: false
   header:
     space_below_name: 0.18cm
     space_below_connections: 0.22cm
