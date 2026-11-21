@@ -77,7 +77,7 @@ Synthesize a concise **Target Role Rubric** before touching project selection:
 
 Match every work experience and Tracefolio project against the Step 2 **Target Role Rubric**:
 
-- **Select & rank** the strongest experiences and projects for the chosen track so the entire resume fits cleanly on **1 page**.
+- **Select & rank (with Priority Queue):** Rank all eligible experiences and Tracefolio projects against the Step 2 **Target Role Rubric** and ownership evidence (`authorship-audit.json`). Select the primary set to fit cleanly on **1 page**, and keep the remaining role-relevant projects ordered in a **Priority Queue** so Step 6 can pull the highest-priority next project if significant whitespace remains on page 1.
 - **Tailor bullet framing** using `Action Verb + System/Architecture Scope + Technologies + Evidenced Outcome` while aligning vocabulary honestly with ATS keywords from Step 2.
 - **Re-group `Technical Skills`** so the most role-relevant category appears first and every listed skill is genuinely evidenced in `docs/Resume.pdf` or `.tracefolio-local`.
 - **Present a concise Content Blueprint** to the user (shortlisted experiences, shortlisted Tracefolio projects with logical `project_id`/`work_id`, proposed skill ordering, and any optional questions if the user wants to supply real measured numbers) and wait for confirmation before rendering—unless the user explicitly asked to render directly.
@@ -193,8 +193,10 @@ Write the YAML file to the Git-ignored private path `resumes/Resume-<Position>/r
 Run all checks before presenting the final PDF to the user:
 
 1. **Schema validation:** Confirm `rendercv render` exits with code `0`. If Pydantic reports a validation error, fix the reported YAML field and re-render.
-2. **Exact 1-page check:** Inspect `resumes/Resume-<Position>/output/` and confirm **exactly 1 PNG page** (`*_1.png` only, no `*_2.png`). If content spills onto page 2, tighten wording or adjust vertical spacing in `design:` and re-render.
-3. **Visual check:** Read the generated PNG image to verify typography, alignment, margins, no awkward line wraps, no citizenship/visa footer, and no AI-disclosure text.
+2. **Exact 1-page & priority-fill check:** Inspect `resumes/Resume-<Position>/output/` and confirm **exactly 1 PNG page** (`*_1.png` only, no `*_2.png`).
+   - **If content spills onto page 2:** Tighten bullet phrasing or adjust vertical spacing in `design:` and re-render until it fits cleanly on 1 page.
+   - **If significant bottom whitespace remains on page 1 (> ~10% of page height, with room for another entry without shrinking body font below `8.8pt`):** Pull the next highest-priority **role-relevant** project from the Step 4 Priority Queue (matching Step 2 criteria and verified ownership), add it to `PROJECTS` (updating `TECHNICAL SKILLS` if needed), re-render, and re-inspect the PNG until page utilization reaches a clean, balanced **~92–97%** on 1 page. Never pad with off-track projects solely to fill whitespace.
+3. **Visual check:** Read the generated PNG image to verify typography, alignment, margins, page balance, no awkward line wraps, no citizenship/visa footer, and no AI-disclosure text.
 4. **Data-leak check:** Run `git status --short` in the `tracfolio` checkout and confirm zero files from `docs/Resume.pdf`, `resumes/`, or `rendercv_output/` appear as tracked or untracked.
 
 ---
