@@ -91,7 +91,7 @@ Private state can optionally live at the validated Git-ignored `.tracefolio-loca
 
 ## Offline work feedback workbench
 
-Open [tools/work-feedback.html](tools/work-feedback.html) directly in a local browser (offline only, no network calls) to review works without inspecting raw JSON by hand. It accepts `.jsonl` files (such as the synthetic [examples/works.example.jsonl](examples/works.example.jsonl)), `summarize --all --format json` / `--view brief` portfolio JSON, individual `works/*.json` files, folder uploads, or pasted JSON/JSONL, and exports structured feedback (`.jsonl` / `.json`) with correctness/ownership verdicts and reasons.
+Open [tools/work-feedback.html](tools/work-feedback.html) directly in a local browser (offline only, no network calls) to review works without inspecting raw JSON by hand. It accepts `.jsonl` files (such as the synthetic [examples/works.example.jsonl](examples/works.example.jsonl)), `summarize --all --format json` / `--view brief` portfolio JSON, individual `works/*.json` files, folder uploads, or pasted JSON/JSONL, and exports structured feedback (`.jsonl` / `.json`) with correctness/ownership verdicts and reasons. You can also attach an `audit authorship` JSON export (`+ Attach Authorship Audit (.json)` or drag-and-drop alongside portfolio JSON) to surface Layer 1 component breakdowns and filter directly to risky False Positive / False Negative works.
 
 ## Optional resume generation (private local checkout)
 

@@ -470,6 +470,57 @@
       color: var(--ok);
     }
 
+    .pill.danger {
+      background: var(--danger-bg);
+      border-color: var(--danger-border);
+      color: var(--danger);
+    }
+
+    .pill.edit {
+      background: var(--edit-bg);
+      border-color: var(--edit-border);
+      color: var(--edit);
+    }
+
+    .audit-box {
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 12px;
+      margin-top: 10px;
+      font-size: 0.84rem;
+    }
+
+    .audit-box.risk-suspected_fp {
+      background: var(--danger-bg);
+      border-color: var(--danger-border);
+    }
+
+    .audit-box.risk-suspected_fn {
+      background: var(--warn-bg);
+      border-color: var(--warn-border);
+    }
+
+    .audit-box.risk-low_risk {
+      background: var(--ok-bg);
+      border-color: var(--ok-border);
+    }
+
+    .audit-meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      margin-top: 4px;
+    }
+
+    .audit-components-list {
+      margin-top: 6px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
     .work-title {
       margin: 0;
       font-size: 1.08rem;
@@ -766,17 +817,19 @@
     <section id="dropzone" class="dropzone" aria-label="Insert work files">
       <div>
         <div class="dropzone-title">Insert ไฟล์ Work หรือ Portfolio (ลากวางไฟล์มาที่นี่ได้)</div>
-        <div class="dropzone-hint">รองรับ .jsonl, portfolio.json (full / brief), อาร์เรย์ของ work หรือเลือกหลายไฟล์ works/*.json พร้อมกัน</div>
+        <div class="dropzone-hint">รองรับ .jsonl, portfolio.json (full / brief), works/*.json และสามารถแนบ authorship-component-audit.json เพื่อกรองเฉพาะกลุ่มเสี่ยง (FP / FN)</div>
       </div>
       <div class="dropzone-buttons">
         <button id="btn-insert-files" class="primary" type="button">+ Insert JSONL / JSON Files</button>
         <button id="btn-insert-folder" type="button">+ Insert Folder (works/)</button>
+        <button id="btn-attach-audit" type="button">+ Attach Authorship Audit (.json)</button>
         <button id="btn-paste-open" type="button">Paste JSON / JSONL</button>
         <button id="btn-import-feedback" type="button">Import Previous Feedback</button>
         <button id="btn-clear-session" class="danger-outline" type="button">Clear Session</button>
       </div>
       <input id="input-files" class="hidden-input" type="file" multiple accept=".json,.jsonl,.ndjson,.txt">
       <input id="input-folder" class="hidden-input" type="file" webkitdirectory directory multiple>
+      <input id="input-audit" class="hidden-input" type="file" accept=".json,.txt">
       <input id="input-feedback" class="hidden-input" type="file" accept=".json,.jsonl,.ndjson,.txt">
     </section>
 
@@ -810,6 +863,10 @@
         <div class="stat-label">ถูกบางส่วน / ต้องแก้</div>
         <div id="stat-needs-edit" class="stat-value edit">0</div>
       </div>
+      <div class="stat-card">
+        <div class="stat-label">กลุ่มเสี่ยง (Risky FP/FN)</div>
+        <div id="stat-risky" class="stat-value warn">-</div>
+      </div>
     </section>
 
     <section class="progress-wrap" aria-label="Progress">
@@ -841,6 +898,13 @@
         <option value="self_authored">self_authored</option>
         <option value="collaborative">collaborative</option>
         <option value="unverified">unverified</option>
+      </select>
+      <select id="filter-risk" aria-label="Filter by authorship audit risk">
+        <option value="__all__">ทุกระดับความเสี่ยง (All)</option>
+        <option value="risky">เฉพาะกลุ่มเสี่ยงทั้งหมด (Risky: FP + FN)</option>
+        <option value="suspected_fp">เสี่ยง False Positive (คนอื่นทำ / ทำร่วม)</option>
+        <option value="suspected_fn">เสี่ยง False Negative (Unmatched / Non-Git / Unverified)</option>
+        <option value="low_risk">ความเสี่ยงต่ำ (Self Supported)</option>
       </select>
       <div class="segmented" role="group" aria-label="View mode">
         <button id="btn-mode-list" class="active" type="button">List Mode</button>
@@ -1063,20 +1127,278 @@
         warnings.push((sourceLabel || "input") + ": ignored unrecognized JSON object (missing work_id / entries)");
       }
 
+      function isAuditReportObject(obj) {
+        return isPlainObject(obj)
+          && Array.isArray(obj.projects)
+          && isPlainObject(obj.identity)
+          && typeof obj.scope === "string";
+      }
+
+      function parseAuditObject(obj, sourceLabel) {
+        const auditMap = {};
+        const projectComponentsMap = {};
+        const warnings = [];
+        if (!isAuditReportObject(obj)) {
+          warnings.push((sourceLabel || "audit") + ": unrecognized authorship audit JSON (expected projects[] and identity)");
+          return {
+            auditMap: auditMap,
+            projectComponentsMap: projectComponentsMap,
+            identity: null,
+            generatedAt: null,
+            warnings: warnings
+          };
+        }
+
+        for (const proj of obj.projects) {
+          if (!isPlainObject(proj) || typeof proj.project_id !== "string" || !proj.project_id.trim()) {
+            continue;
+          }
+          const pid = proj.project_id.trim();
+          const compList = [];
+          if (Array.isArray(proj.sources)) {
+            for (const src of proj.sources) {
+              if (!isPlainObject(src) || !Array.isArray(src.components)) {
+                continue;
+              }
+              const sid = typeof src.source_id === "string" ? src.source_id : "";
+              const kind = typeof src.kind === "string" ? src.kind : "";
+              for (const comp of src.components) {
+                if (!isPlainObject(comp) || typeof comp.component !== "string") {
+                  continue;
+                }
+                compList.push({
+                  source_id: sid,
+                  kind: kind,
+                  component: comp.component,
+                  verdict: typeof comp.verdict === "string" ? comp.verdict : "unverified",
+                  self_commits: typeof comp.self_commits === "number" ? comp.self_commits : 0,
+                  other_or_unmatched_commits: typeof comp.other_or_unmatched_commits === "number" ? comp.other_or_unmatched_commits : 0,
+                  merge_context_commits: typeof comp.merge_context_commits === "number" ? comp.merge_context_commits : 0,
+                  self_touched_files_count: typeof comp.self_touched_files_count === "number" ? comp.self_touched_files_count : 0,
+                  total_head_files_count: typeof comp.total_head_files_count === "number" ? comp.total_head_files_count : 0,
+                  self_lines_added: typeof comp.self_lines_added === "number" ? comp.self_lines_added : null,
+                  other_lines_added: typeof comp.other_lines_added === "number" ? comp.other_lines_added : null
+                });
+              }
+            }
+          }
+          projectComponentsMap[pid] = compList;
+
+          if (Array.isArray(proj.works)) {
+            for (const w of proj.works) {
+              if (!isPlainObject(w) || typeof w.work_id !== "string" || !w.work_id.trim()) {
+                continue;
+              }
+              const wid = w.work_id.trim();
+              const claimsById = {};
+              if (Array.isArray(w.claims)) {
+                for (const c of w.claims) {
+                  if (!isPlainObject(c) || typeof c.claim_id !== "string" || !c.claim_id.trim()) {
+                    continue;
+                  }
+                  claimsById[c.claim_id.trim()] = {
+                    claim_id: c.claim_id.trim(),
+                    support_verdict: typeof c.support_verdict === "string" ? c.support_verdict : "unverified",
+                    commit_support_counts: isPlainObject(c.commit_support_counts) ? c.commit_support_counts : {},
+                    path_support_counts: isPlainObject(c.path_support_counts) ? c.path_support_counts : {}
+                  };
+                }
+              }
+              auditMap[makeWorkKey(pid, wid)] = {
+                project_id: pid,
+                work_id: wid,
+                assessment: typeof w.assessment === "string" ? w.assessment : "unverified",
+                referenced_commit_counts: isPlainObject(w.referenced_commit_counts) ? w.referenced_commit_counts : {},
+                referenced_path_counts: isPlainObject(w.referenced_path_counts) ? w.referenced_path_counts : {},
+                referenced_components: normalizeStringArray(w.referenced_components),
+                claimsById: claimsById
+              };
+            }
+          }
+        }
+
+        return {
+          auditMap: auditMap,
+          projectComponentsMap: projectComponentsMap,
+          identity: obj.identity,
+          generatedAt: typeof obj.generated_at === "string" ? obj.generated_at : null,
+          warnings: warnings
+        };
+      }
+
+      function parseAuditText(text, sourceLabel) {
+        const trimmed = typeof text === "string" ? text.trim() : "";
+        if (!trimmed) {
+          return {
+            auditMap: {},
+            projectComponentsMap: {},
+            identity: null,
+            generatedAt: null,
+            warnings: [(sourceLabel || "audit") + ": file is empty"]
+          };
+        }
+        try {
+          return parseAuditObject(JSON.parse(trimmed), sourceLabel);
+        } catch (_err) {
+          return {
+            auditMap: {},
+            projectComponentsMap: {},
+            identity: null,
+            generatedAt: null,
+            warnings: [(sourceLabel || "audit") + ": invalid JSON"]
+          };
+        }
+      }
+
+      function classifyWorkRisk(work, auditMap) {
+        if (!auditMap || Object.keys(auditMap).length === 0) {
+          return {
+            bucket: "no_audit",
+            is_risky: false,
+            assessment: null,
+            reason_label: "ยังไม่ได้แนบ Authorship Audit"
+          };
+        }
+        const entry = work && auditMap[work.key] ? auditMap[work.key] : null;
+        if (!entry) {
+          return {
+            bucket: "suspected_fn",
+            is_risky: true,
+            assessment: "unverified",
+            reason_label: "ไม่พบรายการนี้ในไฟล์ Audit (ควรตรวจสอบ)"
+          };
+        }
+        const commits = entry.referenced_commit_counts || {};
+        const paths = entry.referenced_path_counts || {};
+        const otherCount = (commits.other_account || 0) + (paths.other_account || 0);
+        const unmatchedCount = (commits.unmatched_local_author || 0) + (paths.unmatched_local_author || 0);
+        const assessment = entry.assessment || "unverified";
+
+        if (assessment === "other_authored_only" || assessment === "reviewed_changes_authored_by_other_account") {
+          return {
+            bucket: "suspected_fp",
+            is_risky: true,
+            assessment: assessment,
+            reason_label: "เสี่ยง False Positive (หลักฐานชี้ว่าบัญชีอื่นทำทั้งหมด)"
+          };
+        }
+        if ((assessment === "shared_supported" || assessment === "mixed_or_shared_contribution_evidence") && otherCount > 0) {
+          return {
+            bucket: "suspected_fp",
+            is_risky: true,
+            assessment: assessment,
+            reason_label: "เสี่ยง False Positive / ทำร่วมกับบัญชีอื่น (ควรตรวจขอบเขตส่วนที่ทำจริง)"
+          };
+        }
+        if (assessment === "shared_supported" || assessment === "mixed_or_shared_contribution_evidence") {
+          return {
+            bucket: "suspected_fn",
+            is_risky: true,
+            assessment: assessment,
+            reason_label: "ทำร่วม / มีอีเมล Local ที่ยังไม่ตรง (ควรตรวจขอบเขต)"
+          };
+        }
+        if (assessment === "unmatched_local_only" || assessment === "local_author_identity_unmatched") {
+          return {
+            bucket: "suspected_fn",
+            is_risky: true,
+            assessment: assessment,
+            reason_label: "เสี่ยง False Negative (อีเมล Local ยังไม่ตรงกับ GitHub)"
+          };
+        }
+        if (assessment === "unverifiable_non_git" || assessment === "non_git_or_context_authorship_unverified") {
+          return {
+            bucket: "suspected_fn",
+            is_risky: true,
+            assessment: assessment,
+            reason_label: "ยืนยันจาก Git ไม่ได้ (Non-Git Directory)"
+          };
+        }
+        if (assessment === "merge_context_only" || assessment === "merge_integration_only" || assessment === "unverified" || assessment === "no_attributable_implementation_evidence") {
+          return {
+            bucket: "suspected_fn",
+            is_risky: true,
+            assessment: assessment,
+            reason_label: "ยังยืนยันจาก Commit ไม่ได้ (" + assessment + ")"
+          };
+        }
+        if (assessment === "self_supported" || assessment === "self_authored_change_evidence_present") {
+          if (otherCount > 0) {
+            return {
+              bucket: "suspected_fp",
+              is_risky: true,
+              assessment: assessment,
+              reason_label: "มีหลักฐานบัญชีอื่นปะปน (ควรตรวจสอบ)"
+            };
+          }
+          if (unmatchedCount > 0) {
+            return {
+              bucket: "suspected_fn",
+              is_risky: true,
+              assessment: assessment,
+              reason_label: "มีอีเมล Local ที่ยังไม่ตรงปะปน (ควรตรวจสอบ)"
+            };
+          }
+          return {
+            bucket: "low_risk",
+            is_risky: false,
+            assessment: assessment,
+            reason_label: "ความเสี่ยงต่ำ (Commit ยืนยันว่าทำเอง)"
+          };
+        }
+        return {
+          bucket: "suspected_fn",
+          is_risky: true,
+          assessment: assessment,
+          reason_label: "สถานะ Audit ไม่ชัดเจน (" + assessment + ")"
+        };
+      }
+
+      function computeRiskStats(works, feedbackMap, auditMap) {
+        const hasAudit = Boolean(auditMap && Object.keys(auditMap).length > 0);
+        const stats = {
+          has_audit: hasAudit,
+          total_risky: 0,
+          risky_reviewed: 0,
+          risky_unreviewed: 0,
+          suspected_fp: 0,
+          suspected_fn: 0,
+          low_risk: 0,
+          no_audit: 0
+        };
+        for (const w of works || []) {
+          const risk = classifyWorkRisk(w, auditMap);
+          stats[risk.bucket] += 1;
+          if (risk.is_risky) {
+            stats.total_risky += 1;
+            const fb = (feedbackMap || {})[w.key];
+            if (fb && VALID_VERDICTS.has(fb.verdict) && fb.verdict !== "unreviewed") {
+              stats.risky_reviewed += 1;
+            } else {
+              stats.risky_unreviewed += 1;
+            }
+          }
+        }
+        return stats;
+      }
+
       function parseWorksText(text, sourceLabel) {
         const works = [];
         const warnings = [];
         const trimmed = typeof text === "string" ? text.trim() : "";
         if (!trimmed) {
           warnings.push((sourceLabel || "input") + ": file is empty");
-          return { works: works, warnings: warnings };
+          return { works: works, warnings: warnings, auditReport: null };
         }
 
         // Try whole-document JSON first
         try {
           const parsed = JSON.parse(trimmed);
+          if (isAuditReportObject(parsed)) {
+            return { works: works, warnings: warnings, auditReport: parseAuditObject(parsed, sourceLabel) };
+          }
           extractWorksFromObject(parsed, sourceLabel, works, warnings);
-          return { works: works, warnings: warnings };
+          return { works: works, warnings: warnings, auditReport: null };
         } catch (_wholeError) {
           // Fall through to JSONL line-by-line parsing
         }
@@ -1094,7 +1416,7 @@
             warnings.push((sourceLabel || "jsonl") + ":" + (idx + 1) + ": invalid JSON line");
           }
         }
-        return { works: works, warnings: warnings };
+        return { works: works, warnings: warnings, auditReport: null };
       }
 
       function mergeWorks(existingWorks, incomingWorks) {
@@ -1259,13 +1581,15 @@
       function buildFeedbackExport(works, feedbackMap, options) {
         const opts = options || {};
         const reviewedOnly = opts.reviewedOnly !== false;
+        const auditMap = opts.auditMap || null;
+        const hasAudit = Boolean(auditMap && Object.keys(auditMap).length > 0);
         const items = [];
         for (const w of works || []) {
           const fb = feedbackMap[w.key] || createFeedbackEntry("unreviewed", "", null, null);
           if (reviewedOnly && fb.verdict === "unreviewed" && !fb.reason.trim()) {
             continue;
           }
-          items.push({
+          const item = {
             schema_version: "1.0.0",
             project_id: w.project_id,
             work_id: w.work_id,
@@ -1278,7 +1602,13 @@
             original_contribution: w.contribution,
             original_review_status: w.review_status,
             reviewed_at: fb.reviewed_at
-          });
+          };
+          if (hasAudit) {
+            const risk = classifyWorkRisk(w, auditMap);
+            item.audit_assessment = risk.assessment;
+            item.risk_bucket = risk.bucket;
+          }
+          items.push(item);
         }
         return items;
       }
@@ -1306,6 +1636,10 @@
         VERDICT_DEFAULTS: VERDICT_DEFAULTS,
         makeWorkKey: makeWorkKey,
         inferProjectIdFromPath: inferProjectIdFromPath,
+        isAuditReportObject: isAuditReportObject,
+        parseAuditText: parseAuditText,
+        classifyWorkRisk: classifyWorkRisk,
+        computeRiskStats: computeRiskStats,
         parseWorksText: parseWorksText,
         mergeWorks: mergeWorks,
         createFeedbackEntry: createFeedbackEntry,
@@ -1339,13 +1673,17 @@
       const state = {
         works: [],
         feedback: {},
+        auditMap: {},
+        projectComponentsMap: {},
+        auditMeta: null,
         viewMode: "list",
         focusIndex: 0,
         filters: {
           search: "",
           project: "__all__",
           verdict: "__all__",
-          contribution: "__all__"
+          contribution: "__all__",
+          risk: "__all__"
         }
       };
 
@@ -1353,9 +1691,11 @@
         dropzone: document.getElementById("dropzone"),
         inputFiles: document.getElementById("input-files"),
         inputFolder: document.getElementById("input-folder"),
+        inputAudit: document.getElementById("input-audit"),
         inputFeedback: document.getElementById("input-feedback"),
         btnInsertFiles: document.getElementById("btn-insert-files"),
         btnInsertFolder: document.getElementById("btn-insert-folder"),
+        btnAttachAudit: document.getElementById("btn-attach-audit"),
         btnPasteOpen: document.getElementById("btn-paste-open"),
         btnImportFeedback: document.getElementById("btn-import-feedback"),
         btnClearSession: document.getElementById("btn-clear-session"),
@@ -1372,6 +1712,7 @@
         statNotMine: document.getElementById("stat-not-mine"),
         statMisunderstood: document.getElementById("stat-misunderstood"),
         statNeedsEdit: document.getElementById("stat-needs-edit"),
+        statRisky: document.getElementById("stat-risky"),
         progressLabel: document.getElementById("progress-label"),
         progressPct: document.getElementById("progress-pct"),
         progressFill: document.getElementById("progress-fill"),
@@ -1379,6 +1720,7 @@
         filterProject: document.getElementById("filter-project"),
         filterVerdict: document.getElementById("filter-verdict"),
         filterContribution: document.getElementById("filter-contribution"),
+        filterRisk: document.getElementById("filter-risk"),
         btnModeList: document.getElementById("btn-mode-list"),
         btnModeFocus: document.getElementById("btn-mode-focus"),
         chkExportReviewedOnly: document.getElementById("chk-export-reviewed-only"),
@@ -1426,7 +1768,10 @@
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify({
             works: state.works,
-            feedback: state.feedback
+            feedback: state.feedback,
+            auditMap: state.auditMap,
+            projectComponentsMap: state.projectComponentsMap,
+            auditMeta: state.auditMeta
           }));
         } catch (_err) {
           // Ignore quota or disabled storage errors
@@ -1450,8 +1795,18 @@
           if (parsed.feedback && typeof parsed.feedback === "object") {
             state.feedback = parsed.feedback;
           }
+          if (parsed.auditMap && typeof parsed.auditMap === "object") {
+            state.auditMap = parsed.auditMap;
+          }
+          if (parsed.projectComponentsMap && typeof parsed.projectComponentsMap === "object") {
+            state.projectComponentsMap = parsed.projectComponentsMap;
+          }
+          if (parsed.auditMeta && typeof parsed.auditMeta === "object") {
+            state.auditMeta = parsed.auditMeta;
+          }
           if (state.works.length > 0) {
-            showBanner("กู้คืน Session ล่าสุดจาก Browser แล้ว (" + state.works.length + " รายการ) — กด Clear Session หากต้องการเริ่มใหม่", "info");
+            const auditNote = Object.keys(state.auditMap).length > 0 ? " + แนบ Authorship Audit อยู่แล้ว" : "";
+            showBanner("กู้คืน Session ล่าสุดจาก Browser แล้ว (" + state.works.length + " รายการ" + auditNote + ") — กด Clear Session หากต้องการเริ่มใหม่", "info");
           }
         } catch (_err) {
           // Ignore invalid stored session
@@ -1467,6 +1822,16 @@
           if (state.filters.contribution !== "__all__" && w.contribution !== state.filters.contribution) {
             return false;
           }
+          if (state.filters.risk !== "__all__") {
+            const risk = Core.classifyWorkRisk(w, state.auditMap);
+            if (state.filters.risk === "risky") {
+              if (!risk.is_risky) {
+                return false;
+              }
+            } else if (risk.bucket !== state.filters.risk) {
+              return false;
+            }
+          }
           const fb = state.feedback[w.key];
           const verdict = fb ? fb.verdict : "unreviewed";
           if (state.filters.verdict === "incorrect") {
@@ -1477,6 +1842,7 @@
             return false;
           }
           if (q) {
+            const auditEntry = state.auditMap[w.key];
             const haystack = [
               w.project_id,
               w.work_id,
@@ -1484,7 +1850,8 @@
               w.problem || "",
               w.actions.join(" "),
               w.unknowns.join(" "),
-              fb ? fb.reason : ""
+              fb ? fb.reason : "",
+              auditEntry ? (auditEntry.assessment + " " + (auditEntry.referenced_components || []).join(" ")) : ""
             ].join(" ").toLowerCase();
             if (!haystack.includes(q)) {
               return false;
@@ -1519,18 +1886,24 @@
 
       function updateStats() {
         const stats = Core.computeStats(state.works, state.feedback);
+        const riskStats = Core.computeRiskStats(state.works, state.feedback, state.auditMap);
         el.statTotal.textContent = String(stats.total);
         el.statReviewed.textContent = String(stats.reviewed);
         el.statCorrect.textContent = String(stats.correct);
         el.statNotMine.textContent = String(stats.not_my_work);
         el.statMisunderstood.textContent = String(stats.misunderstood);
         el.statNeedsEdit.textContent = String(stats.needs_edit);
+        el.statRisky.textContent = riskStats.has_audit ? String(riskStats.total_risky) : "-";
 
         const pct = stats.total > 0 ? Math.round((stats.reviewed / stats.total) * 100) : 0;
         el.progressPct.textContent = pct + "%";
         el.progressFill.style.width = pct + "%";
+        const riskProgress = riskStats.has_audit
+          ? " | กลุ่มเสี่ยงตรวจแล้ว " + riskStats.risky_reviewed + " / " + riskStats.total_risky
+            + " (FP: " + riskStats.suspected_fp + ", FN/อื่นๆ: " + riskStats.suspected_fn + ", ทำเองชัดเจน: " + riskStats.low_risk + ")"
+          : "";
         el.progressLabel.textContent = stats.total > 0
-          ? "ตรวจแล้ว " + stats.reviewed + " / " + stats.total + " รายการ (คงเหลือ " + stats.unreviewed + " รายการ)"
+          ? "ตรวจแล้ว " + stats.reviewed + " / " + stats.total + " รายการ (คงเหลือ " + stats.unreviewed + " รายการ)" + riskProgress
           : "ยังไม่มีรายการที่โหลด — กดปุ่ม Insert ด้านบนเพื่อนำเข้าไฟล์ Work";
 
         const hasWorks = stats.total > 0;
@@ -1612,6 +1985,19 @@
 
         const badges = document.createElement("div");
         badges.className = "card-badges";
+        const riskInfo = Core.classifyWorkRisk(work, state.auditMap);
+        const auditEntry = state.auditMap[work.key] || null;
+        if (riskInfo.bucket !== "no_audit") {
+          const riskPillClass = riskInfo.bucket === "suspected_fp"
+            ? "danger"
+            : (riskInfo.bucket === "suspected_fn" ? "warn" : "ok");
+          const riskShort = riskInfo.bucket === "suspected_fp"
+            ? "เสี่ยง FP: " + riskInfo.assessment
+            : (riskInfo.bucket === "suspected_fn"
+                ? "เสี่ยง FN: " + riskInfo.assessment
+                : "Audit: " + riskInfo.assessment);
+          badges.appendChild(makePill(riskShort, riskPillClass));
+        }
         badges.appendChild(makePill("contribution: " + work.contribution, work.contribution === "self_authored" ? "ok" : ""));
         badges.appendChild(makePill("impl: " + work.implementation_status));
         badges.appendChild(makePill("analysis: " + work.analysis_status));
@@ -1620,6 +2006,59 @@
         header.appendChild(left);
         header.appendChild(badges);
         card.appendChild(header);
+
+        // Authorship Audit Overlay Panel (Layer 1 & Layer 2)
+        if (riskInfo.bucket !== "no_audit") {
+          const auditBox = document.createElement("div");
+          auditBox.className = "audit-box risk-" + riskInfo.bucket;
+          const lbl = document.createElement("div");
+          lbl.className = "section-label";
+          lbl.textContent = "Authorship Audit (Layer 1 & Layer 2) — " + riskInfo.reason_label;
+          auditBox.appendChild(lbl);
+
+          if (auditEntry) {
+            const metaRow = document.createElement("div");
+            metaRow.className = "audit-meta-row";
+            const formatCounts = (prefix, obj) => {
+              const keys = Object.keys(obj || {});
+              if (keys.length === 0) {
+                return null;
+              }
+              return prefix + ": " + keys.map((k) => k + "=" + obj[k]).join(", ");
+            };
+            const commitStr = formatCounts("commits", auditEntry.referenced_commit_counts);
+            const pathStr = formatCounts("paths", auditEntry.referenced_path_counts);
+            if (commitStr) {
+              metaRow.appendChild(makePill(commitStr, "mono"));
+            }
+            if (pathStr) {
+              metaRow.appendChild(makePill(pathStr, "mono"));
+            }
+            if (metaRow.childNodes.length > 0) {
+              auditBox.appendChild(metaRow);
+            }
+
+            const projectComps = state.projectComponentsMap[work.project_id] || [];
+            const refCompSet = new Set(auditEntry.referenced_components || []);
+            const matchedComps = refCompSet.size > 0
+              ? projectComps.filter((c) => refCompSet.has(c.component))
+              : projectComps.slice(0, 8);
+            if (matchedComps.length > 0) {
+              const compWrap = document.createElement("div");
+              compWrap.className = "audit-components-list";
+              for (const comp of matchedComps.slice(0, 12)) {
+                const cClass = comp.verdict === "self_only"
+                  ? "ok"
+                  : (comp.verdict === "other_only" ? "danger" : "warn");
+                const cText = comp.component + ": " + comp.verdict
+                  + " (self=" + comp.self_commits + ", other=" + comp.other_or_unmatched_commits + ")";
+                compWrap.appendChild(makePill(cText, cClass + " mono"));
+              }
+              auditBox.appendChild(compWrap);
+            }
+          }
+          card.appendChild(auditBox);
+        }
 
         // Problem
         if (work.problem) {
@@ -1702,6 +2141,13 @@
               top.style.flexWrap = "wrap";
               top.appendChild(makePill(c.claim_id || "claim", "mono"));
               top.appendChild(makePill(c.status));
+              if (auditEntry && auditEntry.claimsById && auditEntry.claimsById[c.claim_id]) {
+                const cAudit = auditEntry.claimsById[c.claim_id];
+                const cClass = cAudit.support_verdict === "self_supported"
+                  ? "ok"
+                  : (cAudit.support_verdict === "other_authored_only" ? "danger" : "warn");
+                top.appendChild(makePill("audit: " + cAudit.support_verdict, cClass));
+              }
               const stmt = document.createElement("div");
               stmt.textContent = c.statement;
               stmt.style.marginTop = "4px";
@@ -1890,6 +2336,26 @@
         el.worksContainer.replaceChildren(fragment);
       }
 
+      function applyAuditOverlay(parsedAudit, sourceLabel) {
+        state.auditMap = parsedAudit.auditMap || {};
+        state.projectComponentsMap = parsedAudit.projectComponentsMap || {};
+        state.auditMeta = {
+          generatedAt: parsedAudit.generatedAt || null,
+          identity: parsedAudit.identity || null,
+          sourceLabel: sourceLabel || "audit.json"
+        };
+        const riskStats = Core.computeRiskStats(state.works, state.feedback, state.auditMap);
+        if (riskStats.has_audit && riskStats.total_risky > 0) {
+          state.filters.risk = "risky";
+          el.filterRisk.value = "risky";
+          state.focusIndex = 0;
+        }
+        persistSession();
+        updateStats();
+        renderWorks();
+        return riskStats;
+      }
+
       async function ingestWorkFiles(fileList) {
         const files = Array.from(fileList || []).filter((f) => /\.(json|jsonl|ndjson|txt)$/i.test(f.name));
         if (files.length === 0) {
@@ -1898,27 +2364,67 @@
         }
         const incoming = [];
         const allWarnings = [];
+        let detectedAudit = null;
+        let detectedAuditLabel = null;
         for (const file of files) {
           const text = await file.text();
           const label = file.webkitRelativePath || file.name;
           const result = Core.parseWorksText(text, label);
-          incoming.push(...result.works);
-          allWarnings.push(...result.warnings);
+          if (result.auditReport) {
+            detectedAudit = result.auditReport;
+            detectedAuditLabel = label;
+            allWarnings.push(...result.auditReport.warnings);
+          } else {
+            incoming.push(...result.works);
+            allWarnings.push(...result.warnings);
+          }
         }
         const merged = Core.mergeWorks(state.works, incoming);
         state.works = merged.works;
-        persistSession();
+        let riskStats = null;
+        if (detectedAudit) {
+          riskStats = applyAuditOverlay(detectedAudit, detectedAuditLabel);
+        } else {
+          persistSession();
+          updateStats();
+        }
         updateProjectDropdown();
-        updateStats();
         renderWorks();
 
-        const summaryMsg = "นำเข้าสำเร็จ: เพิ่มใหม่ " + merged.added + " รายการ, อัปเดต " + merged.updated + " รายการ (จาก " + files.length + " ไฟล์)";
+        const parts = [];
+        if (incoming.length > 0 || !detectedAudit) {
+          parts.push("นำเข้า Work สำเร็จ: เพิ่มใหม่ " + merged.added + " รายการ, อัปเดต " + merged.updated + " รายการ");
+        }
+        if (riskStats && riskStats.has_audit) {
+          parts.push("แนบ Authorship Audit แล้ว — พบกลุ่มเสี่ยง " + riskStats.total_risky + " รายการ (FP: " + riskStats.suspected_fp + ", FN/อื่นๆ: " + riskStats.suspected_fn + ") และกรองแสดงเฉพาะกลุ่มเสี่ยงให้แล้ว");
+        }
+        const summaryMsg = parts.join(" | ");
         if (allWarnings.length > 0) {
           showBanner(summaryMsg + " | คำเตือน (" + allWarnings.length + "): " + allWarnings.slice(0, 3).join(" ; "), "warn");
         } else {
           showBanner(summaryMsg, "info");
         }
         showToast("โหลดงานทั้งหมด " + state.works.length + " รายการแล้ว");
+      }
+
+      async function ingestAuditFile(file) {
+        if (!file) {
+          return;
+        }
+        const text = await file.text();
+        const parsed = Core.parseAuditText(text, file.name);
+        if (parsed.warnings.length > 0 && Object.keys(parsed.auditMap).length === 0) {
+          showBanner("ไม่สามารถอ่านไฟล์ Authorship Audit ได้: " + parsed.warnings.join(" ; "), "warn");
+          return;
+        }
+        const riskStats = applyAuditOverlay(parsed, file.name);
+        const msg = "แนบ Authorship Audit สำเร็จ (" + Object.keys(parsed.auditMap).length + " works ในรายงาน) — "
+          + (state.works.length > 0
+              ? "พบกลุ่มเสี่ยง " + riskStats.total_risky + " / " + state.works.length + " รายการ (FP: " + riskStats.suspected_fp + ", FN/อื่นๆ: " + riskStats.suspected_fn + ", ทำเองชัดเจน: " + riskStats.low_risk + ")"
+                + (riskStats.total_risky > 0 ? " — กรองแสดงเฉพาะกลุ่มเสี่ยงให้อัตโนมัติแล้ว" : "")
+              : "กรุณา Insert ไฟล์ work-feedback-full.json เพิ่มเติม");
+        showBanner(msg, "info");
+        showToast("แนบ Authorship Audit แล้ว");
       }
 
       async function ingestFeedbackFile(file) {
@@ -1968,6 +2474,12 @@
       });
       el.inputFolder.addEventListener("change", (e) => ingestWorkFiles(e.target.files));
 
+      el.btnAttachAudit.addEventListener("click", () => {
+        el.inputAudit.value = "";
+        el.inputAudit.click();
+      });
+      el.inputAudit.addEventListener("change", (e) => ingestAuditFile(e.target.files[0]));
+
       el.btnImportFeedback.addEventListener("click", () => {
         el.inputFeedback.value = "";
         el.inputFeedback.click();
@@ -1987,9 +2499,14 @@
       });
       el.btnPasteSubmit.addEventListener("click", () => {
         const res = Core.parseWorksText(el.pasteTextarea.value, "pasted");
+        el.pasteModal.classList.remove("open");
+        if (res.auditReport) {
+          const riskStats = applyAuditOverlay(res.auditReport, "pasted-audit");
+          showBanner("แนบ Authorship Audit จาก Clipboard แล้ว — พบกลุ่มเสี่ยง " + riskStats.total_risky + " รายการ (FP: " + riskStats.suspected_fp + ", FN/อื่นๆ: " + riskStats.suspected_fn + ")", "info");
+          return;
+        }
         const merged = Core.mergeWorks(state.works, res.works);
         state.works = merged.works;
-        el.pasteModal.classList.remove("open");
         persistSession();
         updateProjectDropdown();
         updateStats();
@@ -2002,14 +2519,19 @@
       });
 
       el.btnClearSession.addEventListener("click", () => {
-        if (state.works.length === 0 && Object.keys(state.feedback).length === 0) {
+        if (state.works.length === 0 && Object.keys(state.feedback).length === 0 && Object.keys(state.auditMap).length === 0) {
           return;
         }
-        if (!window.confirm("ล้างรายการ Work และ Feedback ทั้งหมดออกจากหน้านี้และ Browser localStorage?")) {
+        if (!window.confirm("ล้างรายการ Work, Authorship Audit และ Feedback ทั้งหมดออกจากหน้านี้และ Browser localStorage?")) {
           return;
         }
         state.works = [];
         state.feedback = {};
+        state.auditMap = {};
+        state.projectComponentsMap = {};
+        state.auditMeta = null;
+        state.filters.risk = "__all__";
+        el.filterRisk.value = "__all__";
         state.focusIndex = 0;
         try {
           localStorage.removeItem(STORAGE_KEY);
@@ -2025,7 +2547,8 @@
 
       el.btnExportJsonl.addEventListener("click", () => {
         const items = Core.buildFeedbackExport(state.works, state.feedback, {
-          reviewedOnly: el.chkExportReviewedOnly.checked
+          reviewedOnly: el.chkExportReviewedOnly.checked,
+          auditMap: state.auditMap
         });
         if (items.length === 0) {
           showBanner("ยังไม่มีรายการที่พร้อม Export (ลองเลือก Verdict อย่างน้อย 1 รายการ หรือยกเลิกติ๊ก 'Export เฉพาะที่ตรวจแล้ว')", "warn");
@@ -2037,19 +2560,21 @@
 
       el.btnExportJson.addEventListener("click", () => {
         const reviewedOnly = el.chkExportReviewedOnly.checked;
-        const items = Core.buildFeedbackExport(state.works, state.feedback, { reviewedOnly: reviewedOnly });
+        const opts = { reviewedOnly: reviewedOnly, auditMap: state.auditMap };
+        const items = Core.buildFeedbackExport(state.works, state.feedback, opts);
         if (items.length === 0) {
           showBanner("ยังไม่มีรายการที่พร้อม Export", "warn");
           return;
         }
-        const jsonText = Core.serializeFeedbackBundle(state.works, state.feedback, { reviewedOnly: reviewedOnly });
+        const jsonText = Core.serializeFeedbackBundle(state.works, state.feedback, opts);
         downloadFile("work-feedback-" + timestampSlug() + ".json", jsonText, "application/json;charset=utf-8");
         showToast("Export JSON จำนวน " + items.length + " รายการแล้ว");
       });
 
       el.btnCopyJsonl.addEventListener("click", async () => {
         const items = Core.buildFeedbackExport(state.works, state.feedback, {
-          reviewedOnly: el.chkExportReviewedOnly.checked
+          reviewedOnly: el.chkExportReviewedOnly.checked,
+          auditMap: state.auditMap
         });
         if (items.length === 0) {
           showBanner("ยังไม่มีรายการสำหรับคัดลอก", "warn");
@@ -2094,6 +2619,11 @@
       });
       el.filterContribution.addEventListener("change", (e) => {
         state.filters.contribution = e.target.value;
+        state.focusIndex = 0;
+        renderWorks();
+      });
+      el.filterRisk.addEventListener("change", (e) => {
+        state.filters.risk = e.target.value;
         state.focusIndex = 0;
         renderWorks();
       });
