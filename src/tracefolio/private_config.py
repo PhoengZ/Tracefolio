@@ -24,6 +24,7 @@ class ResolvedConfig:
     policy: PrivacyPolicy = field(repr=False)
     author_emails: frozenset[str] = field(default_factory=frozenset, repr=False)
     local_state_checkout: Path | None = field(default=None, repr=False)
+    github_user_id: int | None = field(default=None, repr=False)
 
 
 def reject_links(path: Path) -> None:
@@ -84,6 +85,18 @@ def _array(name: str | None, *, min_length=0) -> list[str]:
         return values
     except (ValueError, TypeError):
         raise TracefolioError("invalid_binding") from None
+
+
+def _optional_positive_int(name: str | None) -> int | None:
+    if name is None:
+        return None
+    raw = _binding(name).strip()
+    if not raw.isdigit():
+        raise TracefolioError("invalid_binding")
+    value = int(raw)
+    if value <= 0:
+        raise TracefolioError("invalid_binding")
+    return value
 
 
 def _absolute(value: str) -> Path:
@@ -158,6 +171,7 @@ def load_config_set(config_paths: list[Path]) -> ResolvedConfig:
     locators = {}
     private_values = [str(state), *(str(p) for p in paths)]
     identities = _array(registry.owner.author_emails_env)
+    github_user_id = _optional_positive_int(registry.owner.github_user_id_env)
     private_values.extend(identities)
     extra_redactions = _array(registry.privacy.redact_values_env, min_length=4)
     private_values.extend(extra_redactions)
@@ -186,7 +200,8 @@ def load_config_set(config_paths: list[Path]) -> ResolvedConfig:
         json.dumps(sorted(extra_redactions)).encode()).hexdigest()
     policy = PrivacyPolicy(tuple(v for v in private_values if v), epoch)
     return ResolvedConfig(registry, state, paths, locators, policy,
-                          frozenset(v.casefold() for v in identities), local_checkout)
+                          frozenset(v.casefold() for v in identities), local_checkout,
+                          github_user_id)
 
 
 def validate_export_path(config: ResolvedConfig, path: Path) -> Path:

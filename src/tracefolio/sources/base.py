@@ -25,6 +25,8 @@ class SourceRequest:
     limits: Limits
     policy: PrivacyPolicy
     owner_emails: frozenset[str] = field(default_factory=frozenset)
+    owner_github_id: int | None = None
+    owner_github_login: str | None = None
 
 
 @dataclass(repr=False)

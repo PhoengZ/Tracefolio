@@ -17,6 +17,7 @@ class Limits(StrictModel):
 
 class Owner(StrictModel):
     author_emails_env: EnvRef | None = None
+    github_user_id_env: EnvRef | None = None
 
 
 class Privacy(StrictModel):

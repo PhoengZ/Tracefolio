@@ -257,7 +257,7 @@ class StateStore:
             raise TracefolioError("unknown_source")
         return SourceRequest(project_id, source, self.config.locators[(project_id, source_id)],
                              self.config.registry.limits, self.config.policy,
-                             self.config.author_emails)
+                             self.config.author_emails, self.config.github_user_id)
 
     def publish(self, project_id, expected_base, project, works, ledger, *, proposal_digest=None):
         work_ids = [work.work_id for work in works]

@@ -20,7 +20,7 @@ class EvidenceRecord(Artifact):
     source_relative_path: str | None = None
     content_digest: str
     payload: str
-    attribution: Literal["self", "other", "unverified"] = "unverified"
+    attribution: Literal["self", "shared", "other", "unverified"] = "unverified"
     evidence_type: Literal["code", "measurement", "deployment", "user_note"] = "code"
     completeness: Literal["complete", "partial", "unavailable"] = "complete"
     redactions: list[str] = Field(default_factory=list)

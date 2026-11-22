@@ -3,6 +3,7 @@ import os
 import subprocess
 from pathlib import Path
 
+from ..authorship import classify_commit_attribution, index_local_git_paths
 from ..contracts.common import to_utc
 from ..contracts.evidence import CollectionResult, ContextResult, SourceCursor
 from ..errors import TracefolioError
@@ -18,7 +19,7 @@ def git(request: SourceRequest, *args: str, optional=False) -> bytes | None:
     try:
         result = subprocess.run(
             ["git", "--no-pager", "-c", "core.fsmonitor=false", "-c", "log.showSignature=false",
-             "-c", "diff.external=", "-C", request.locator, *args],
+             "-c", "diff.external=", "-c", "core.quotepath=false", "-C", request.locator, *args],
             env=env, capture_output=True, timeout=30, check=False,
         )
         if result.returncode:
@@ -75,23 +76,6 @@ class LocalGitProvider:
                                **metadata)],
             coverage=coverage(req, request.revision, True),
         )
-
-    def _path_attribution(self, req: SourceRequest, revision: str, path: str) -> str:
-        if not req.owner_emails:
-            return "unverified"
-        raw = git(req, "log", "-n", "25", "--no-merges", "--format=%ae", revision, "--", path,
-                  optional=True)
-        if not raw:
-            return "unverified"
-        emails = {line.strip().casefold() for line in raw.decode("utf-8", "replace").splitlines()
-                  if line.strip()}
-        if not emails:
-            return "unverified"
-        if emails <= req.owner_emails:
-            return "self"
-        if not (emails & req.owner_emails):
-            return "other"
-        return "unverified"
 
     def _snapshot_blob(self, req: SourceRequest, revision: str, path: str, max_bytes: int):
         safe_relative(path)
@@ -191,6 +175,11 @@ class LocalGitProvider:
             inventory = {p: sha for p, sha in tree_blobs.items() if baseline.get(p) == sha}
 
         selected = names[:req.limits.max_files_per_source]
+        path_index = (
+            index_local_git_paths(req, target, git, tree_paths=sorted(tree_blobs))
+            if selected and req.owner_emails
+            else None
+        )
         records, retry, invalidated = [], [], []
         total = 0
         for path in selected:
@@ -198,7 +187,7 @@ class LocalGitProvider:
                 text, metadata, size, comp = self._snapshot_blob(
                     req, target, path, req.limits.max_total_source_bytes - total)
                 total += size
-                attr = self._path_attribution(req, target, path)
+                attr = path_index.attribution_for_path(path) if path_index else "unverified"
                 records.append(evidence(req, target, path, text, origin="snapshot",
                                         attribution=attr, completeness=comp, **metadata))
                 inventory[path] = tree_blobs[path]
@@ -284,10 +273,12 @@ class LocalGitProvider:
             email, parents_line, message = meta.split("\n", 2)
             parents = parents_line.split()
             parent = parents[0] if parents else None
-            attribution = ("self" if email.casefold() in req.owner_emails else
-                           "other" if req.owner_emails else "unverified")
-            if len(parents) > 1:
-                attribution = "unverified"
+            attribution, _, _ = classify_commit_attribution(
+                email,
+                parent_count=len(parents),
+                message=message,
+                owner_emails=req.owner_emails,
+            )
             delta_args = [parent, sha] if parent else ["--root", sha]
             raw_paths = git(req, "diff-tree", "--no-commit-id", "--name-status", "-r", "-z",
                             "-M", *delta_args).decode("utf-8", "replace").split("\0")

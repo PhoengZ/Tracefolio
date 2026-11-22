@@ -247,6 +247,7 @@ def build_semantic_map(project, records, policy) -> list[SemanticFileEntry]:
                 kind=kind,
                 work_ids=sorted(set(work_ids)),
                 status="deleted" if is_deleted else "active",
+                attribution=record.attribution,
                 symbols=clean_symbols,
             )
         )
