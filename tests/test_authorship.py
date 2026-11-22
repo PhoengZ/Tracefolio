@@ -472,3 +472,49 @@ def test_cli_audit_authorship_subcommand(knowledge_workspace, monkeypatch, capsy
     assert out["projects"][0]["project_id"] == "demo"
     assert out["projects"][0]["assessment"] == "unverifiable_non_git"
     assert json.loads(target.read_text(encoding="utf-8")) == out
+
+
+def test_anti_taint_readme_and_minor_glue_touches():
+    from collections import Counter
+
+    from tracefolio.authorship import _derive_support_assessment
+
+    # 1. README.md-only owner touch must not taint an otherwise other-authored app into shared_supported
+    verdict, share = _derive_support_assessment(
+        Counter({"other_account": 10}),
+        [
+            ("other_account", "app/page.tsx", 0.0),
+            ("other_account", "components/Header.tsx", 0.0),
+            ("shared", "README.md", 0.25),
+        ],
+    )
+    assert verdict == "other_authored_only"
+    assert share == 0.0
+
+    # 2. Minor shared glue edit (<20% share, <=1 self commit) in teammate-dominated local work -> minor_touch_only
+    verdict, share = _derive_support_assessment(
+        Counter({"unmatched_local_author": 4}),
+        [
+            ("unmatched_local_author", "src/nudges/Agent.ts", 0.0),
+            ("unmatched_local_author", "src/nudges/Backoff.ts", 0.0),
+            ("unmatched_local_author", "src/nudges/Repo.ts", 0.0),
+            ("unmatched_local_author", "src/nudges/Scheduler.ts", 0.0),
+            ("shared", "src/integrations/Client.ts", 0.4),
+            ("shared", "src/db/schema.ts", 0.6),
+            ("shared", "src/index.ts", 0.2),
+        ],
+    )
+    assert verdict == "minor_touch_only"
+    assert share is not None and share < 0.20
+
+    # 3. Genuine co-owned work with high owner share stays shared_supported
+    verdict, share = _derive_support_assessment(
+        Counter({"self": 5, "other_account": 3}),
+        [
+            ("self", "analytics-service/main.go", 1.0),
+            ("shared", "api-gateway/auth.go", 0.6),
+            ("other_account", "auth-service/login.go", 0.0),
+        ],
+    )
+    assert verdict == "shared_supported"
+    assert share is not None and share >= 0.50

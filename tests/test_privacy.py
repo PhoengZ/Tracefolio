@@ -108,6 +108,9 @@ def test_traversal_and_denied_files(tmp_path):
         with pytest.raises(TracefolioError):
             resolve_allowed_path(tmp_path, bad)
     assert path_allowed("one.py", ["**/*.py"], [])
+    assert path_allowed("analysis/notebook.ipynb", ["analysis/**/*.ipynb"], [])
+    assert path_allowed("analysis/sub/nested/notebook.ipynb", ["analysis/**/*.ipynb"], [])
+    assert not path_allowed("other/notebook.ipynb", ["analysis/**/*.ipynb"], [])
     assert not path_allowed("node_modules/foo.py", ["**/*.py"], [])
 
 

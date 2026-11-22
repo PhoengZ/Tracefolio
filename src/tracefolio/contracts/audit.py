@@ -28,6 +28,7 @@ SourceAssessment = Literal[
 SupportVerdict = Literal[
     "self_supported",
     "shared_supported",
+    "minor_touch_only",
     "other_authored_only",
     "unmatched_local_only",
     "merge_context_only",
@@ -79,6 +80,7 @@ class ClaimAuthorshipAudit(StrictModel):
     claim_id: Id
     statement: str
     support_verdict: SupportVerdict
+    self_share: float | None = Field(default=None, ge=0.0, le=1.0)
     commit_support_counts: dict[str, int] = Field(default_factory=dict)
     path_support_counts: dict[str, int] = Field(default_factory=dict)
 
@@ -87,6 +89,7 @@ class WorkAuthorshipAudit(StrictModel):
     work_id: Id
     title: str
     assessment: SupportVerdict
+    self_share: float | None = Field(default=None, ge=0.0, le=1.0)
     referenced_commit_counts: dict[str, int] = Field(default_factory=dict)
     referenced_path_counts: dict[str, int] = Field(default_factory=dict)
     referenced_components: list[str] = Field(default_factory=list)

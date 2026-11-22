@@ -1199,6 +1199,7 @@
                   claimsById[c.claim_id.trim()] = {
                     claim_id: c.claim_id.trim(),
                     support_verdict: typeof c.support_verdict === "string" ? c.support_verdict : "unverified",
+                    self_share: typeof c.self_share === "number" ? c.self_share : null,
                     commit_support_counts: isPlainObject(c.commit_support_counts) ? c.commit_support_counts : {},
                     path_support_counts: isPlainObject(c.path_support_counts) ? c.path_support_counts : {}
                   };
@@ -1208,6 +1209,7 @@
                 project_id: pid,
                 work_id: wid,
                 assessment: typeof w.assessment === "string" ? w.assessment : "unverified",
+                self_share: typeof w.self_share === "number" ? w.self_share : null,
                 referenced_commit_counts: isPlainObject(w.referenced_commit_counts) ? w.referenced_commit_counts : {},
                 referenced_path_counts: isPlainObject(w.referenced_path_counts) ? w.referenced_path_counts : {},
                 referenced_components: normalizeStringArray(w.referenced_components),
@@ -1273,28 +1275,50 @@
         const otherCount = (commits.other_account || 0) + (paths.other_account || 0);
         const unmatchedCount = (commits.unmatched_local_author || 0) + (paths.unmatched_local_author || 0);
         const assessment = entry.assessment || "unverified";
+        const selfShare = typeof entry.self_share === "number" ? entry.self_share : null;
 
         if (assessment === "other_authored_only" || assessment === "reviewed_changes_authored_by_other_account") {
           return {
             bucket: "suspected_fp",
             is_risky: true,
             assessment: assessment,
+            self_share: selfShare,
             reason_label: "เสี่ยง False Positive (หลักฐานชี้ว่าบัญชีอื่นทำทั้งหมด)"
           };
         }
-        if ((assessment === "shared_supported" || assessment === "mixed_or_shared_contribution_evidence") && otherCount > 0) {
+        if (assessment === "minor_touch_only") {
           return {
             bucket: "suspected_fp",
             is_risky: true,
             assessment: assessment,
-            reason_label: "เสี่ยง False Positive / ทำร่วมกับบัญชีอื่น (ควรตรวจขอบเขตส่วนที่ทำจริง)"
+            self_share: selfShare,
+            reason_label: "เสี่ยง False Positive (คุณแตะเฉพาะไฟล์กลาง/แก้เล็กน้อย <20% — เพื่อนทำหลัก)"
           };
         }
         if (assessment === "shared_supported" || assessment === "mixed_or_shared_contribution_evidence") {
+          if (selfShare !== null && selfShare >= 0.65 && otherCount === 0) {
+            return {
+              bucket: "low_risk",
+              is_risky: false,
+              assessment: assessment,
+              self_share: selfShare,
+              reason_label: "ความเสี่ยงต่ำ (คุณเป็นคนทำหลัก " + Math.round(selfShare * 100) + "%)"
+            };
+          }
+          if (otherCount > 0) {
+            return {
+              bucket: "suspected_fp",
+              is_risky: true,
+              assessment: assessment,
+              self_share: selfShare,
+              reason_label: "เสี่ยง False Positive / ทำร่วมกับบัญชีอื่น (ควรตรวจขอบเขตส่วนที่ทำจริง)"
+            };
+          }
           return {
             bucket: "suspected_fn",
             is_risky: true,
             assessment: assessment,
+            self_share: selfShare,
             reason_label: "ทำร่วม / มีอีเมล Local ที่ยังไม่ตรง (ควรตรวจขอบเขต)"
           };
         }
@@ -1303,6 +1327,7 @@
             bucket: "suspected_fn",
             is_risky: true,
             assessment: assessment,
+            self_share: selfShare,
             reason_label: "เสี่ยง False Negative (อีเมล Local ยังไม่ตรงกับ GitHub)"
           };
         }
@@ -1311,6 +1336,7 @@
             bucket: "suspected_fn",
             is_risky: true,
             assessment: assessment,
+            self_share: selfShare,
             reason_label: "ยืนยันจาก Git ไม่ได้ (Non-Git Directory)"
           };
         }
@@ -1319,6 +1345,7 @@
             bucket: "suspected_fn",
             is_risky: true,
             assessment: assessment,
+            self_share: selfShare,
             reason_label: "ยังยืนยันจาก Commit ไม่ได้ (" + assessment + ")"
           };
         }
@@ -1328,6 +1355,7 @@
               bucket: "suspected_fp",
               is_risky: true,
               assessment: assessment,
+              self_share: selfShare,
               reason_label: "มีหลักฐานบัญชีอื่นปะปน (ควรตรวจสอบ)"
             };
           }
@@ -1336,6 +1364,7 @@
               bucket: "suspected_fn",
               is_risky: true,
               assessment: assessment,
+              self_share: selfShare,
               reason_label: "มีอีเมล Local ที่ยังไม่ตรงปะปน (ควรตรวจสอบ)"
             };
           }
@@ -1343,6 +1372,7 @@
             bucket: "low_risk",
             is_risky: false,
             assessment: assessment,
+            self_share: selfShare,
             reason_label: "ความเสี่ยงต่ำ (Commit ยืนยันว่าทำเอง)"
           };
         }
@@ -1350,6 +1380,7 @@
           bucket: "suspected_fn",
           is_risky: true,
           assessment: assessment,
+          self_share: selfShare,
           reason_label: "สถานะ Audit ไม่ชัดเจน (" + assessment + ")"
         };
       }
@@ -1895,13 +1926,18 @@
         el.statNeedsEdit.textContent = String(stats.needs_edit);
         el.statRisky.textContent = riskStats.has_audit ? String(riskStats.total_risky) : "-";
 
-        const pct = stats.total > 0 ? Math.round((stats.reviewed / stats.total) * 100) : 0;
+        const filteredCount = getFilteredWorks().length;
+        const showingRiskOnly = state.filters.risk === "risky" && riskStats.has_audit;
+        const pct = showingRiskOnly && riskStats.total_risky > 0
+          ? Math.round((riskStats.risky_reviewed / riskStats.total_risky) * 100)
+          : (stats.total > 0 ? Math.round((stats.reviewed / stats.total) * 100) : 0);
         el.progressPct.textContent = pct + "%";
         el.progressFill.style.width = pct + "%";
         const riskProgress = riskStats.has_audit
-          ? " | กลุ่มเสี่ยงตรวจแล้ว " + riskStats.risky_reviewed + " / " + riskStats.total_risky
-            + " (FP: " + riskStats.suspected_fp + ", FN/อื่นๆ: " + riskStats.suspected_fn + ", ทำเองชัดเจน: " + riskStats.low_risk + ")"
-          : "";
+          ? " | กำลังแสดง " + filteredCount + " / " + stats.total + " รายการ | กลุ่มเสี่ยงตรวจแล้ว "
+            + riskStats.risky_reviewed + " / " + riskStats.total_risky
+            + " (FP: " + riskStats.suspected_fp + ", FN/อื่นๆ: " + riskStats.suspected_fn + ", ทำหลักชัดเจน: " + riskStats.low_risk + ")"
+          : (stats.total > 0 ? " | กำลังแสดง " + filteredCount + " / " + stats.total + " รายการ" : "");
         el.progressLabel.textContent = stats.total > 0
           ? "ตรวจแล้ว " + stats.reviewed + " / " + stats.total + " รายการ (คงเหลือ " + stats.unreviewed + " รายการ)" + riskProgress
           : "ยังไม่มีรายการที่โหลด — กดปุ่ม Insert ด้านบนเพื่อนำเข้าไฟล์ Work";
@@ -2028,6 +2064,11 @@
             };
             const commitStr = formatCounts("commits", auditEntry.referenced_commit_counts);
             const pathStr = formatCounts("paths", auditEntry.referenced_path_counts);
+            if (typeof auditEntry.self_share === "number") {
+              const sharePct = Math.round(auditEntry.self_share * 100);
+              const shareClass = sharePct >= 65 ? "ok" : (sharePct < 20 ? "danger" : "warn");
+              metaRow.appendChild(makePill("self_share: " + sharePct + "%", shareClass + " mono"));
+            }
             if (commitStr) {
               metaRow.appendChild(makePill(commitStr, "mono"));
             }
@@ -2385,6 +2426,14 @@
         if (detectedAudit) {
           riskStats = applyAuditOverlay(detectedAudit, detectedAuditLabel);
         } else {
+          if (Object.keys(state.auditMap).length > 0 && state.filters.risk === "__all__") {
+            const existingRisk = Core.computeRiskStats(state.works, state.feedback, state.auditMap);
+            if (existingRisk.total_risky > 0) {
+              state.filters.risk = "risky";
+              el.filterRisk.value = "risky";
+              riskStats = existingRisk;
+            }
+          }
           persistSession();
           updateStats();
         }
@@ -2605,26 +2654,31 @@
       el.filterSearch.addEventListener("input", (e) => {
         state.filters.search = e.target.value;
         state.focusIndex = 0;
+        updateStats();
         renderWorks();
       });
       el.filterProject.addEventListener("change", (e) => {
         state.filters.project = e.target.value;
         state.focusIndex = 0;
+        updateStats();
         renderWorks();
       });
       el.filterVerdict.addEventListener("change", (e) => {
         state.filters.verdict = e.target.value;
         state.focusIndex = 0;
+        updateStats();
         renderWorks();
       });
       el.filterContribution.addEventListener("change", (e) => {
         state.filters.contribution = e.target.value;
         state.focusIndex = 0;
+        updateStats();
         renderWorks();
       });
       el.filterRisk.addEventListener("change", (e) => {
         state.filters.risk = e.target.value;
         state.focusIndex = 0;
+        updateStats();
         renderWorks();
       });
 
