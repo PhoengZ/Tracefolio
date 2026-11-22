@@ -20,9 +20,12 @@ def source_fingerprint(config, project, source, *, include_default_mode=True):
     src_data = source.model_dump()
     if not include_default_mode and src_data.get("collection_mode") == "commits":
         src_data.pop("collection_mode", None)
-    return digest({"source": src_data, "project_context": project.context,
-                   "locator": config.locators[(project.project_id, source.source_id)],
-                   "authors": sorted(config.author_emails), "privacy": config.policy.epoch})
+    payload = {"source": src_data, "project_context": project.context,
+               "locator": config.locators[(project.project_id, source.source_id)],
+               "authors": sorted(config.author_emails), "privacy": config.policy.epoch}
+    if config.github_user_id is not None:
+        payload["github_user_id"] = config.github_user_id
+    return digest(payload)
 
 
 def project_fingerprint(config, project, *, include_default_mode=True):

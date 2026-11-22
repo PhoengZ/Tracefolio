@@ -2,6 +2,7 @@ import argparse
 import json
 import sys
 
+from .authorship import audit_projects, export_audit
 from .collection import collect_projects
 from .errors import TracefolioError
 from .investigation import create_packet, extend_packet
@@ -50,6 +51,13 @@ def parser():
     select = status.add_mutually_exclusive_group(required=True)
     select.add_argument("--all", action="store_true")
     select.add_argument("--project", action="append")
+    audit = commands.add_parser("audit")
+    audit_sub = audit.add_subparsers(dest="audit_command", required=True)
+    authorship = audit_sub.add_parser("authorship")
+    select = authorship.add_mutually_exclusive_group(required=True)
+    select.add_argument("--all", action="store_true")
+    select.add_argument("--project", action="append")
+    authorship.add_argument("--out")
     return root
 
 
@@ -71,9 +79,13 @@ def main(argv=None) -> int:
             result = collect_projects(config, ids, mode=args.mode)
             emit(result.as_dict())
             return 3 if result.partial else 0
-        read_only = args.command == 'status' or (args.command == 'summarize' and not args.out)
+        read_only = (
+            args.command == "status"
+            or (args.command == "summarize" and not args.out)
+            or (args.command == "audit" and not args.out)
+        )
         store = StateStore.open(config, read_only=read_only)
-        if args.command in {"summarize", "status"}:
+        if args.command in {"summarize", "status", "audit"}:
             registry = config.registry
             if not args.all:
                 if not set(args.project) <= {p.project_id for p in registry.projects}:
@@ -85,6 +97,12 @@ def main(argv=None) -> int:
                 emit({'configured_project_count': len(registry.projects), 'entries': entries})
                 return 3 if any(e['analysis_action'] in {'blocked', 'missing'}
                                 for e in entries) else 0
+            if args.command == "audit":
+                report = audit_projects(store, registry)
+                if args.out:
+                    export_audit(store, report, args.out)
+                emit(report.model_dump(mode="json"))
+                return 3 if any(p.status == "error" for p in report.projects) else 0
             result = summarize_portfolio(store, registry)
             if args.out:
                 export_portfolio(store, result, args.out)

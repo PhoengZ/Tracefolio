@@ -7,6 +7,7 @@ The CLI is deterministic acquisition/validation infrastructure. Your existing LL
 | User request | CLI route | Permitted work |
 |---|---|---|
 | Summarize/show saved work/again | `summarize --all --view brief --format json` or `--project <id>` | Read saved knowledge and report coverage; no collection, packet or apply |
+| Audit component/work authorship | `audit authorship --all` or `--project <id>` | Read-only Layer 1 component metadata + Layer 2 work/claim cross-check; no state mutation |
 | Update/refresh/latest | `status --all` or `--project <id>`, then bounded collection | Update requested scope using saved cursors/hashes; analyze only required evidence/work |
 | Review a particular existing work | `packet create --project <id> --work <work-id>` | Deliberate targeted review; preserve unrelated backlog |
 

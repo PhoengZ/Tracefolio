@@ -144,9 +144,14 @@ def apply_proposal(store: StateStore, proposal_path: Path) -> PublicationResult:
         reconciling = bool(old and any(
             s in ledger.reconciliation_sources for s in old.provenance.source_ids))
         merged_refs = refs if (not old or reconciling) else (refs | prior_refs)
-        if update.contribution != "unverified" and (
-                not store.config.author_emails or not any(
+        has_identity = bool(store.config.author_emails or store.config.github_user_id)
+        if update.contribution == "self_authored" and (
+                not has_identity or not any(
                     evidence[ref].attribution == "self" for ref in merged_refs)):
+            raise TracefolioError("ownership_unverified")
+        if update.contribution == "collaborative" and (
+                not has_identity or not any(
+                    evidence[ref].attribution in {"self", "shared"} for ref in merged_refs)):
             raise TracefolioError("ownership_unverified")
         if update.implementation_status == "deployed" and not any(
                 evidence[ref].evidence_type in {"deployment", "user_note"} for ref in merged_refs):

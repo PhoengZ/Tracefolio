@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass, field
 from urllib.parse import quote, urlencode
 
+from ..authorship import classify_commit_attribution, index_github_public_paths
 from ..contracts.common import to_utc
 from ..contracts.evidence import CollectionResult, ContextResult, SourceCursor
 from ..errors import TracefolioError
@@ -97,6 +98,39 @@ class GhCliClient:
             raise TracefolioError("github_invalid_json", exit_code=3) from None
         return ApiResponse(data=data, headers=headers, byte_count=body_bytes)
 
+    def get_authenticated_user(self) -> dict:
+        try:
+            result = subprocess.run(
+                ["gh", "api", "-i", "-H", "Accept: application/vnd.github+json", "/user"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=self.timeout,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            raise TracefolioError("github_unavailable", exit_code=3) from None
+        status, headers, body = _split_http_response(result.stdout or "")
+        if status == 429 or (
+            status == 403
+            and (
+                headers.get("x-ratelimit-remaining") == "0"
+                or "rate limit" in (body + (result.stderr or "")).lower()
+            )
+        ):
+            error = TracefolioError("github_rate_limited", exit_code=3)
+            error.retry_after = _retry_after(headers)
+            raise error
+        if result.returncode != 0 or (status is not None and status >= 400):
+            raise TracefolioError("github_unavailable", exit_code=3)
+        try:
+            data = json.loads(body)
+        except ValueError:
+            raise TracefolioError("github_invalid_json", exit_code=3) from None
+        if not isinstance(data, dict) or not isinstance(data.get("id"), int):
+            raise TracefolioError("github_invalid_json", exit_code=3)
+        return {"id": data["id"], "login": data.get("login")}
+
 
 class GitHubPublicProvider:
     def __init__(self, transport=None):
@@ -179,33 +213,6 @@ class GitHubPublicProvider:
             raise TracefolioError("invalid_utf8", exit_code=3) from None
         return semantic_outline_payload(path, full_text, limit), {}, "partial"
 
-    def _snapshot_attribution(self, req: SourceRequest, prefix: str,
-                              target: str, commit_data: dict) -> str:
-        if not req.owner_emails:
-            return "unverified"
-        emails = set()
-        head_email = commit_data.get("commit", {}).get("author", {}).get("email", "")
-        if head_email and len(commit_data.get("parents", [])) <= 1:
-            emails.add(head_email.casefold())
-        try:
-            commits = self._get(req, prefix + "/commits",
-                                {"sha": target, "per_page": "100", "page": "1"}).data
-            if isinstance(commits, list):
-                for item in commits:
-                    if len(item.get("parents", [])) <= 1:
-                        email = item.get("commit", {}).get("author", {}).get("email", "")
-                        if email:
-                            emails.add(email.casefold())
-        except TracefolioError:
-            return "unverified"
-        if not emails:
-            return "unverified"
-        if emails <= req.owner_emails:
-            return "self"
-        if not (emails & req.owner_emails):
-            return "other"
-        return "unverified"
-
     def _activity_bounds(self, repo: dict, commit_data: dict | None,
                          previous: SourceCursor,
                          observed_dates: list[str] | None = None
@@ -281,16 +288,26 @@ class GitHubPublicProvider:
             names = [p for p, (sha, _) in sorted(tree_blobs.items()) if baseline.get(p) != sha]
             inventory = {p: sha for p, (sha, _) in tree_blobs.items() if baseline.get(p) == sha}
 
-        attribution = (self._snapshot_attribution(req, prefix, target, commit_data)
-                       if names else "unverified")
         selected = names[:req.limits.max_files_per_source]
+        path_index = (
+            index_github_public_paths(
+                self,
+                req,
+                target,
+                sorted(tree_blobs),
+                detailed_components=False,
+            )
+            if selected and (req.owner_emails or req.owner_github_id is not None)
+            else None
+        )
         retry = []
         for idx, path in enumerate(selected):
             blob_sha, size = tree_blobs[path]
             try:
                 text, metadata, comp = self._snapshot_blob(req, prefix, blob_sha, path, size)
+                attr = path_index.attribution_for_path(path) if path_index else "unverified"
                 records.append(evidence(req, target, path, text, origin="snapshot",
-                                        attribution=attribution, completeness=comp, **metadata))
+                                        attribution=attr, completeness=comp, **metadata))
                 inventory[path] = blob_sha
                 invalidated.append(path)
             except TracefolioError as error:
@@ -416,13 +433,19 @@ class GitHubPublicProvider:
                     message = data["commit"]["message"]
                     author_info = data["commit"].get("author", {}) or {}
                     email = author_info.get("email", "")
+                    gh_author = data.get("author") or {}
+                    gh_author_id = gh_author.get("id") if isinstance(gh_author, dict) else None
                     if author_info.get("date"):
                         observed_dates.append(author_info["date"])
                     parents = data.get("parents", [])
-                    attribution = ("self" if email.casefold() in req.owner_emails else
-                                   "other" if req.owner_emails else "unverified")
-                    if len(parents) > 1:
-                        attribution = "unverified"
+                    attribution, _, _ = classify_commit_attribution(
+                        email,
+                        parent_count=len(parents),
+                        message=message,
+                        owner_emails=req.owner_emails,
+                        github_author_id=gh_author_id,
+                        owner_github_id=req.owner_github_id,
+                    )
                     commit_bytes = 0
                     ok = True
                     stop = False

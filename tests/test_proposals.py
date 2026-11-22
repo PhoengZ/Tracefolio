@@ -246,3 +246,110 @@ def test_proposal_accepts_short_aliases_wildcard_accounting_and_incremental_roll
     assert set(updated_work.provenance.evidence_refs) == {first_ev, packet.evidence[0].evidence_id}
     assert store.read_state("demo").pending_analysis == []
 
+
+def test_ownership_validation_supports_shared_and_github_user_id(tmp_path, monkeypatch):
+    import subprocess
+
+    from tracefolio.private_config import load_config
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    for args in (
+        ["init", "-q", "-b", "main"],
+        ["config", "user.name", "Synthetic Owner"],
+        ["config", "user.email", "owner@example.invalid"],
+    ):
+        subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+    (repo / "shared.py").write_text("x = 1\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "."], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-qm",
+         "owner work\n\nCo-authored-by: Teammate <peer@example.invalid>"],
+        check=True, capture_output=True,
+    )
+    (repo / "solo.py").write_text("y = 2\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "."], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-qm",
+         "solo work\n\nCo-authored-by: Claude <noreply@anthropic.com>"],
+        check=True, capture_output=True,
+    )
+
+    private = tmp_path / "private"
+    private.mkdir()
+    routes_path = private / "routes.json"
+    routes_path.write_text(json.dumps({
+        "schema_version": "1.0.0",
+        "state_dir_env": "TRACEFOLIO_STATE_DIR",
+        "owner": {
+            "author_emails_env": "TRACEFOLIO_AUTHOR_EMAILS",
+            "github_user_id_env": "TRACEFOLIO_GITHUB_USER_ID",
+        },
+        "projects": [{
+            "project_id": "demo",
+            "title": "Demo",
+            "context": "Synthetic git project.",
+            "enabled": True,
+            "sources": [{
+                "source_id": "code",
+                "kind": "local_git",
+                "collection_mode": "snapshot",
+                "root_env": "TRACEFOLIO_DEMO_ROOT",
+                "include_paths": ["**/*.py"],
+            }],
+        }],
+    }), encoding="utf-8")
+    monkeypatch.setenv("TRACEFOLIO_DEMO_ROOT", str(repo))
+    monkeypatch.setenv("TRACEFOLIO_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("TRACEFOLIO_AUTHOR_EMAILS", '["owner@example.invalid"]')
+    monkeypatch.setenv("TRACEFOLIO_GITHUB_USER_ID", "12345")
+
+    cfg = load_config(routes_path)
+    assert cfg.github_user_id == 12345
+    collect_projects(cfg, ["demo"])
+    store = StateStore.open(cfg)
+    packet = store.read_packet(create_packet(store, "demo").packet_id)
+    by_path = {e.source_relative_path: e for e in packet.evidence}
+    assert by_path["shared.py"].attribution == "shared"
+    assert by_path["solo.py"].attribution == "self"
+    sem_by_path = {s.path: s for s in packet.semantic_map}
+    assert sem_by_path["shared.py"].attribution == "shared"
+    assert sem_by_path["solo.py"].attribution == "self"
+
+    # Shared-only evidence cannot claim self_authored, but can claim collaborative.
+    shared_ev = by_path["shared.py"].evidence_id
+    solo_ev = by_path["solo.py"].evidence_id
+    bad_self = proposal_for(packet, [{
+        "work_id": "shared-work", "title": "Shared work",
+        "claims": [{"claim_id": "c1", "statement": "Shared file.", "status": "observed",
+                    "evidence_refs": [shared_ev]}],
+        "contribution": "self_authored",
+        "implementation_status": "implemented", "analysis_status": "ready",
+        "provenance": {"evidence_refs": [shared_ev], "source_ids": ["code"]},
+    }])
+    prop_path = private / "proposal.json"
+    write_proposal(prop_path, bad_self)
+    with pytest.raises(TracefolioError, match="ownership_unverified"):
+        apply_proposal(store, prop_path)
+
+    valid_mixed = proposal_for(packet, [
+        {
+            "work_id": "shared-work", "title": "Shared work",
+            "claims": [{"claim_id": "c1", "statement": "Shared file.", "status": "observed",
+                        "evidence_refs": [shared_ev]}],
+            "contribution": "collaborative",
+            "implementation_status": "implemented", "analysis_status": "ready",
+            "provenance": {"evidence_refs": [shared_ev], "source_ids": ["code"]},
+        },
+        {
+            "work_id": "solo-work", "title": "Solo work",
+            "claims": [{"claim_id": "c2", "statement": "Solo file.", "status": "observed",
+                        "evidence_refs": [solo_ev]}],
+            "contribution": "self_authored",
+            "implementation_status": "implemented", "analysis_status": "ready",
+            "provenance": {"evidence_refs": [solo_ev], "source_ids": ["code"]},
+        },
+    ])
+    write_proposal(prop_path, valid_mixed)
+    assert apply_proposal(store, prop_path).status == "published"
+

@@ -20,6 +20,7 @@ class SemanticFileEntry(StrictModel):
     kind: str
     work_ids: list[Id] = Field(default_factory=list)
     status: Literal["active", "deleted"] = "active"
+    attribution: Literal["self", "shared", "other", "unverified"] = "unverified"
     symbols: list[str] = Field(default_factory=list)
 
 
