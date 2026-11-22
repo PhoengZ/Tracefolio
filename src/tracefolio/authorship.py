@@ -1231,7 +1231,14 @@ def audit_projects(
 
         work_audits: list[WorkAuthorshipAudit] = []
         for work in works:
-            all_refs = sorted(work_evidence_refs(work))
+            active_refs: set[str] = set()
+            for claim in work.claims:
+                active_refs.update(claim.evidence_refs)
+                if claim.metric:
+                    active_refs.update(claim.metric.evidence_refs)
+            for skill in work.skills:
+                active_refs.update(skill.evidence_refs)
+            all_refs = sorted(active_refs) if active_refs else sorted(work_evidence_refs(work))
             work_commit_shas: dict[tuple[str, str], str] = {}
             work_path_items: list[tuple[str, str | None, float | None]] = []
             work_components: set[str] = set()

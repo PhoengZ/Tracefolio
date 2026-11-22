@@ -332,10 +332,36 @@ assert.strictEqual(auditExport[1].audit_assessment, "other_authored_only");
 // 11. minor_touch_only -> suspected_fp; high self_share local shared (>=65%, no other_account) -> low_risk
 const extraAudit = {
   "p::minor": { assessment: "minor_touch_only", self_share: 0.08, referenced_commit_counts: { unmatched_local_author: 4 }, referenced_path_counts: { shared: 1, unmatched_local_author: 10 } },
-  "p::dominant": { assessment: "shared_supported", self_share: 0.88, referenced_commit_counts: { self: 9 }, referenced_path_counts: { self: 12, shared: 2 } }
+  "p::dominant": { assessment: "shared_supported", self_share: 0.88, referenced_commit_counts: { self: 9 }, referenced_path_counts: { self: 12, shared: 2 } },
+  "p::excluded_other": { assessment: "other_authored_only", self_share: 0.0, referenced_commit_counts: { other_account: 10 }, referenced_path_counts: { other_account: 20 } },
+  "p::excluded_minor": { assessment: "minor_touch_only", self_share: 0.04, referenced_commit_counts: { unmatched_local_author: 4 }, referenced_path_counts: { shared: 1, unmatched_local_author: 18 } }
 };
 assert.strictEqual(Core.classifyWorkRisk({ key: "p::minor" }, extraAudit).bucket, "suspected_fp");
 assert.strictEqual(Core.classifyWorkRisk({ key: "p::dominant" }, extraAudit).bucket, "low_risk");
+
+// 12. Works already excluded by LLM Authorship Gate (0 claims, 0 actions, unverified/unknown/partial) -> low_risk
+const excludedWorkOther = {
+  key: "p::excluded_other",
+  claims: [],
+  actions: [],
+  contribution: "unverified",
+  implementation_status: "unknown",
+  analysis_status: "partial"
+};
+const excludedWorkMinor = {
+  key: "p::excluded_minor",
+  claims: [],
+  actions: [],
+  contribution: "unverified",
+  implementation_status: "unknown",
+  analysis_status: "partial"
+};
+const resExOther = Core.classifyWorkRisk(excludedWorkOther, extraAudit);
+assert.strictEqual(resExOther.bucket, "low_risk");
+assert.strictEqual(resExOther.is_risky, false);
+const resExMinor = Core.classifyWorkRisk(excludedWorkMinor, extraAudit);
+assert.strictEqual(resExMinor.bucket, "low_risk");
+assert.strictEqual(resExMinor.is_risky, false);
 """
     script = core_js + "\n" + driver
     script_path = tmp_path / "feedback_core_driver.js"

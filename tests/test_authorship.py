@@ -518,3 +518,83 @@ def test_anti_taint_readme_and_minor_glue_touches():
     )
     assert verdict == "shared_supported"
     assert share is not None and share >= 0.50
+
+
+def test_audit_work_uses_active_claim_refs_without_historical_provenance_taint(tmp_path):
+    from tracefolio.contracts.knowledge import Skill
+
+    repo = tmp_path / "mixed-repo"
+    repo.mkdir()
+    _git(repo, "init")
+    _commit(repo, "mine/pipeline.py", "def run():\n    return 1\n", "feat: mine", email=OWNER_EMAIL)
+    _commit(repo, "teammate/other.py", "def other():\n    return 2\n", "feat: peer", email=PEER_EMAIL)
+
+    state_root = tmp_path / "state"
+    registry = RouteRegistry(
+        limits=Limits(),
+        projects=[
+            ProjectRoute(
+                project_id="demo",
+                title="Demo",
+                context="Synthetic mixed repo.",
+                sources=[SourceRoute(
+                    source_id="repo",
+                    kind="local_git",
+                    collection_mode="snapshot",
+                    root_env="TRACEFOLIO_DEMO_REPO",
+                    include_paths=["**/*.py"],
+                )],
+            ),
+        ],
+    )
+    config = ResolvedConfig(
+        registry=registry,
+        state_root=state_root,
+        config_paths=[],
+        locators={("demo", "repo"): str(repo)},
+        policy=PrivacyPolicy((str(repo), OWNER_EMAIL, PEER_EMAIL)),
+        author_emails=frozenset({OWNER_EMAIL}),
+    )
+    collect_projects(config, ["demo"])
+
+    store = StateStore.open(config)
+    ledger = store.read_state("demo")
+    ev_by_path = {store.read_evidence(eid).source_relative_path: eid for eid in ledger.evidence_ids}
+    mine_id = ev_by_path["mine/pipeline.py"]
+    other_id = ev_by_path["teammate/other.py"]
+
+    # Simulate a generation whose provenance retains prior teammate evidence_ref,
+    # while active claims/skills cite ONLY the owner's self-authored file.
+    work = WorkRecord(
+        project_id="demo",
+        work_id="ocr-pipeline",
+        record_revision=2,
+        title="Owner pipeline",
+        actions=["Built pipeline"],
+        skills=[Skill(name="Python", evidence_refs=[mine_id])],
+        claims=[Claim(claim_id="c1", statement="Owner built pipeline.", status="observed", evidence_refs=[mine_id])],
+        contribution="self_authored",
+        implementation_status="implemented",
+        analysis_status="ready",
+        review_status="unreviewed",
+        provenance=Provenance(source_ids=["repo"], evidence_refs=[mine_id, other_id]),
+    )
+    project_rec = ProjectRecord(
+        project_id="demo",
+        record_revision=2,
+        title="Demo",
+        summary="Demo summary",
+        source_ids=["repo"],
+        work_ids=["ocr-pipeline"],
+        evidence_ids=[mine_id, other_id],
+        coverage=ledger.coverage(),
+    )
+    ledger.pending_analysis = []
+    store.publish("demo", None, project_rec, [work], ledger)
+
+    report = audit_projects(store, registry)
+    wa = report.projects[0].works[0]
+    assert wa.assessment == "self_supported"
+    assert wa.self_share == 1.0
+    assert "unmatched_local_author" not in wa.referenced_path_counts
+    assert wa.referenced_path_counts == {"self": 1}

@@ -1276,6 +1276,34 @@
         const unmatchedCount = (commits.unmatched_local_author || 0) + (paths.unmatched_local_author || 0);
         const assessment = entry.assessment || "unverified";
         const selfShare = typeof entry.self_share === "number" ? entry.self_share : null;
+        const isExcludedByGate = Boolean(
+          work
+          && Array.isArray(work.claims)
+          && work.claims.length === 0
+          && Array.isArray(work.actions)
+          && work.actions.length === 0
+          && work.contribution === "unverified"
+          && work.implementation_status === "unknown"
+          && work.analysis_status === "partial"
+        );
+        if (
+          isExcludedByGate
+          && (
+            assessment === "other_authored_only"
+            || assessment === "reviewed_changes_authored_by_other_account"
+            || assessment === "minor_touch_only"
+            || assessment === "unmatched_local_only"
+            || assessment === "local_author_identity_unmatched"
+          )
+        ) {
+          return {
+            bucket: "low_risk",
+            is_risky: false,
+            assessment: assessment,
+            self_share: selfShare,
+            reason_label: "คัดกรองออกแล้ว (ไม่ใช่ผลงานของคุณ / 0 claims)"
+          };
+        }
 
         if (assessment === "other_authored_only" || assessment === "reviewed_changes_authored_by_other_account") {
           return {
