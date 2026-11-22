@@ -85,11 +85,23 @@ def mandatory_allowed(path: str) -> bool:
 
 
 def _match(path: str, pattern: str) -> bool:
-    while pattern.startswith("**/"):
-        if fnmatch.fnmatchcase(path, pattern):
+    seen = {pattern}
+    queue = [pattern]
+    while queue:
+        current = queue.pop()
+        if fnmatch.fnmatchcase(path, current):
             return True
-        pattern = pattern[3:]
-    return fnmatch.fnmatchcase(path, pattern)
+        if current.startswith("**/"):
+            nxt = current[3:]
+            if nxt not in seen:
+                seen.add(nxt)
+                queue.append(nxt)
+        if "/**/" in current:
+            nxt = current.replace("/**/", "/", 1)
+            if nxt not in seen:
+                seen.add(nxt)
+                queue.append(nxt)
+    return False
 
 
 def path_allowed(path: str, includes: list[str], excludes: list[str]) -> bool:

@@ -45,6 +45,30 @@ _AI_NAME_PATTERNS = (
 )
 
 
+_LOW_SIGNAL_BASENAMES = frozenset({
+    "readme.md",
+    "agents.md",
+    "package.json",
+    "requirements.txt",
+    "pyproject.toml",
+    "index.ts",
+    "index.js",
+    "main.ts",
+    "app.ts",
+    "schema.ts",
+    "types.ts",
+    "drizzle.ts",
+    ".gitignore",
+})
+
+
+def _is_low_signal_path(rel_path: str | None) -> bool:
+    if not rel_path:
+        return True
+    base = rel_path.rsplit("/", 1)[-1].casefold()
+    return base in _LOW_SIGNAL_BASENAMES
+
+
 def component_key(rel_path: str | None) -> str:
     if not rel_path:
         return "(root)"
@@ -161,6 +185,7 @@ class SourceAuthorshipIndex:
     pinned_revision: str | None
     path_attributions: dict[str, str] = field(default_factory=dict)
     path_audit_labels: dict[str, str] = field(default_factory=dict)
+    path_self_weights: dict[str, float] = field(default_factory=dict)
     commit_meta: dict[str, CommitMeta] = field(default_factory=dict)
     components: list[ComponentAuthorship] = field(default_factory=list)
     derived_owner_emails: set[str] = field(default_factory=set)
@@ -181,6 +206,11 @@ class SourceAuthorshipIndex:
         if self.kind == "local_directory":
             return "unverifiable_non_git"
         return self.path_audit_labels.get(rel_path, "unverified")
+
+    def self_weight_for_path(self, rel_path: str | None) -> float | None:
+        if not rel_path:
+            return None
+        return self.path_self_weights.get(rel_path)
 
 
 def _component_verdict(
@@ -378,12 +408,19 @@ def index_local_git_paths(
         if ps.self_commits > 0 and ps.other_commits == 0 and ps.human_coauthored_commits == 0:
             index.path_attributions[rel_path] = "self"
             index.path_audit_labels[rel_path] = "self"
+            index.path_self_weights[rel_path] = 1.0
         elif ps.self_commits > 0:
             index.path_attributions[rel_path] = "shared"
             index.path_audit_labels[rel_path] = "shared"
+            tot_lines = ps.self_lines_added + ps.other_lines_added
+            if tot_lines > 0:
+                index.path_self_weights[rel_path] = ps.self_lines_added / tot_lines
+            else:
+                index.path_self_weights[rel_path] = ps.self_commits / (ps.self_commits + ps.other_commits)
         elif ps.other_commits > 0:
             index.path_attributions[rel_path] = "other"
             index.path_audit_labels[rel_path] = "unmatched_local_author"
+            index.path_self_weights[rel_path] = 0.0
         else:
             index.path_attributions[rel_path] = "unverified"
             index.path_audit_labels[rel_path] = "unverified"
@@ -485,7 +522,7 @@ def index_github_public_paths(
     owner_emails_override: frozenset[str] | None = None,
     max_history_pages: int = 5,
     max_component_pages: int = 2,
-    max_owner_detail_commits: int = 60,
+    max_owner_detail_commits: int = 250,
     detailed_components: bool = True,
 ) -> SourceAuthorshipIndex:
     """Build a fast metadata-only per-path and per-component index for a public GitHub repo."""
@@ -577,6 +614,7 @@ def index_github_public_paths(
             for f in files:
                 index.path_attributions[f] = attr_value
                 index.path_audit_labels[f] = attr_value
+                index.path_self_weights[f] = 0.5 if attr_value == "shared" else 1.0
             if detailed_components:
                 index.components.append(
                     ComponentAuthorship(
@@ -605,6 +643,7 @@ def index_github_public_paths(
             for f in files:
                 index.path_attributions[f] = "other"
                 index.path_audit_labels[f] = "other_account"
+                index.path_self_weights[f] = 0.0
             if detailed_components:
                 index.components.append(
                     ComponentAuthorship(
@@ -735,22 +774,28 @@ def index_github_public_paths(
         verdict = comp_verdicts[comp]
         files = stats["files"]
         touched_count = 0
+        comp_total = stats["self"] + stats["other"]
+        comp_share = (stats["self"] / comp_total) if comp_total > 0 else 0.5
         for f in files:
             if verdict == "self_only":
                 index.path_attributions[f] = "self"
                 index.path_audit_labels[f] = "self"
+                index.path_self_weights[f] = 1.0
                 touched_count += 1
             elif verdict == "other_only":
                 index.path_attributions[f] = "other"
                 index.path_audit_labels[f] = "other_account"
+                index.path_self_weights[f] = 0.0
             elif verdict == "shared_with_others":
                 if f in self_touched_paths:
                     index.path_attributions[f] = "shared"
                     index.path_audit_labels[f] = "shared"
+                    index.path_self_weights[f] = comp_share
                     touched_count += 1
                 elif not detail_bounded and not stats["bounded"]:
                     index.path_attributions[f] = "other"
                     index.path_audit_labels[f] = "other_account"
+                    index.path_self_weights[f] = 0.0
                 else:
                     index.path_attributions[f] = "unverified"
                     index.path_audit_labels[f] = "unverified"
@@ -781,31 +826,96 @@ def index_github_public_paths(
     return index
 
 
-def _derive_support_verdict(commit_counts: Counter, path_counts: Counter) -> str:
+def _derive_support_assessment(
+    commit_counts: Counter,
+    path_items: list[tuple[str, str | None, float | None]],
+) -> tuple[str, float | None]:
+    """Derive (support_verdict, self_share) while preventing low-signal docs/glue taint."""
+    path_counts: Counter = Counter(label for label, _, _ in path_items)
     combined = Counter(commit_counts)
     combined.update(path_counts)
     if not combined:
-        return "unverified"
-    has_self = combined.get("self", 0) > 0
-    has_shared = combined.get("shared", 0) > 0
-    has_other = combined.get("other_account", 0) > 0
-    has_unmatched = combined.get("unmatched_local_author", 0) > 0
-    has_merge = combined.get("merge_context", 0) > 0
-    has_non_git = combined.get("unverifiable_non_git", 0) > 0
+        return "unverified", None
 
-    if has_self and not (has_shared or has_other or has_unmatched):
-        return "self_supported"
-    if has_self or has_shared:
-        return "shared_supported"
-    if has_other:
-        return "other_authored_only"
-    if has_unmatched:
-        return "unmatched_local_only"
-    if has_merge:
-        return "merge_context_only"
-    if has_non_git:
-        return "unverifiable_non_git"
-    return "unverified"
+    primary_paths = [
+        (label, rel_path, weight)
+        for label, rel_path, weight in path_items
+        if not _is_low_signal_path(rel_path)
+    ]
+    eval_paths = primary_paths if primary_paths else path_items
+
+    weights: list[float] = []
+    for label, count in commit_counts.items():
+        if label == "self":
+            weights.extend([1.0] * count)
+        elif label == "shared":
+            weights.extend([0.5] * count)
+        elif label in {"other_account", "unmatched_local_author"}:
+            weights.extend([0.0] * count)
+
+    for label, _, weight in eval_paths:
+        if label == "self":
+            weights.append(1.0)
+        elif label == "shared":
+            weights.append(0.5 if weight is None else max(0.0, min(1.0, weight)))
+        elif label in {"other_account", "unmatched_local_author"}:
+            weights.append(0.0)
+
+    self_share = round(sum(weights) / len(weights), 2) if weights else None
+
+    has_self_commit = commit_counts.get("self", 0) > 0
+    has_shared_commit = commit_counts.get("shared", 0) > 0
+    has_other_commit = commit_counts.get("other_account", 0) > 0
+    has_unmatched_commit = commit_counts.get("unmatched_local_author", 0) > 0
+
+    eval_path_counts = Counter(label for label, _, _ in eval_paths)
+    has_primary_self = eval_path_counts.get("self", 0) > 0
+    has_primary_shared = eval_path_counts.get("shared", 0) > 0
+    has_primary_other = eval_path_counts.get("other_account", 0) > 0
+    has_primary_unmatched = eval_path_counts.get("unmatched_local_author", 0) > 0
+
+    has_any_other = has_other_commit or has_primary_other or combined.get("other_account", 0) > 0
+    has_any_unmatched = (
+        has_unmatched_commit or has_primary_unmatched or combined.get("unmatched_local_author", 0) > 0
+    )
+
+    if (has_self_commit or has_primary_self) and not (
+        has_shared_commit or has_primary_shared or has_any_other or has_any_unmatched
+    ):
+        return "self_supported", self_share
+
+    # Anti-taint: if owner only touched low-signal docs/glue (e.g., README.md, index.ts, schema.ts)
+    # and has zero self/shared commits and zero primary-code touches while others authored the code.
+    if (
+        not (has_self_commit or has_shared_commit or has_primary_self or has_primary_shared)
+        and (has_other_commit or has_primary_other or has_unmatched_commit or has_primary_unmatched)
+    ):
+        if has_other_commit or has_primary_other:
+            return "other_authored_only", self_share
+        return "unmatched_local_only", self_share
+
+    # Minor glue / review touch: low overall ownership share (<20%) with minimal self commits
+    # while teammates authored the dominant code.
+    if (
+        (has_self_commit or has_shared_commit or has_primary_self or has_primary_shared)
+        and (has_any_other or has_any_unmatched)
+        and self_share is not None
+        and self_share < 0.20
+        and commit_counts.get("self", 0) <= 1
+    ):
+        return "minor_touch_only", self_share
+
+    if has_self_commit or has_shared_commit or has_primary_self or has_primary_shared:
+        return "shared_supported", self_share
+    if combined.get("other_account", 0) > 0:
+        return "other_authored_only", self_share
+    if combined.get("unmatched_local_author", 0) > 0:
+        return "unmatched_local_only", self_share
+    if combined.get("merge_context", 0) > 0:
+        return "merge_context_only", self_share
+    if combined.get("unverifiable_non_git", 0) > 0:
+        return "unverifiable_non_git", self_share
+    return "unverified", self_share
 
 
 def _project_assessment(sources: list[SourceAuthorshipAudit]) -> str:
@@ -1082,12 +1192,13 @@ def audit_projects(
             eid: str,
             proj_id: str = current_project_id,
             cache=ev_cache,
-        ) -> tuple[str, str, str | None]:
+        ) -> tuple[str, str, str | None, str | None, float | None]:
             rec = _get_evidence(eid, cache)
             idx = source_indices.get((proj_id, rec.source_id))
-            comp = component_key(rec.source_relative_path) if rec.source_relative_path else None
+            rel = rec.source_relative_path
+            comp = component_key(rel) if rel else None
             if idx is None:
-                return "path", "unverified", comp
+                return "path", "unverified", comp, rel, None
             if rec.origin == "git_commit":
                 meta = idx.commit_meta.get(rec.revision)
                 if meta is None and idx.kind == "github_public" and gh_user_id is not None:
@@ -1108,60 +1219,72 @@ def audit_projects(
                     except TracefolioError:
                         meta = None
                 if meta is not None:
-                    return "commit", meta.audit_label, comp
-                return "commit", "unverified", comp
-            return "path", idx.audit_label_for_path(rec.source_relative_path), comp
+                    return "commit", meta.audit_label, comp, rel, None
+                return "commit", "unverified", comp, rel, None
+            return (
+                "path",
+                idx.audit_label_for_path(rel),
+                comp,
+                rel,
+                idx.self_weight_for_path(rel),
+            )
 
         work_audits: list[WorkAuthorshipAudit] = []
         for work in works:
             all_refs = sorted(work_evidence_refs(work))
             work_commit_shas: dict[tuple[str, str], str] = {}
-            work_path_counts: Counter = Counter()
+            work_path_items: list[tuple[str, str | None, float | None]] = []
             work_components: set[str] = set()
             for eid in all_refs:
                 try:
-                    kind_tag, label, comp = _classify_evidence_ref(eid)
+                    kind_tag, label, comp, rel, weight = _classify_evidence_ref(eid)
                     rec = _get_evidence(eid)
                     if comp:
                         work_components.add(sanitize_text(comp, config.policy).text)
                     if kind_tag == "commit":
                         work_commit_shas[(rec.source_id, rec.revision)] = label
                     else:
-                        work_path_counts[label] += 1
+                        work_path_items.append((label, rel, weight))
                 except TracefolioError:
-                    work_path_counts["unverified"] += 1
+                    work_path_items.append(("unverified", None, None))
 
             work_commit_counts: Counter = Counter(work_commit_shas.values())
+            work_path_counts: Counter = Counter(label for label, _, _ in work_path_items)
             claim_audits: list[ClaimAuthorshipAudit] = []
             for claim in work.claims:
                 c_commits: dict[tuple[str, str], str] = {}
-                c_paths: Counter = Counter()
+                c_path_items: list[tuple[str, str | None, float | None]] = []
                 for eid in claim.evidence_refs:
                     try:
-                        kind_tag, label, _ = _classify_evidence_ref(eid)
+                        kind_tag, label, _, rel, weight = _classify_evidence_ref(eid)
                         rec = _get_evidence(eid)
                         if kind_tag == "commit":
                             c_commits[(rec.source_id, rec.revision)] = label
                         else:
-                            c_paths[label] += 1
+                            c_path_items.append((label, rel, weight))
                     except TracefolioError:
-                        c_paths["unverified"] += 1
+                        c_path_items.append(("unverified", None, None))
                 c_commit_counts = Counter(c_commits.values())
+                c_path_counts = Counter(label for label, _, _ in c_path_items)
+                c_verdict, c_share = _derive_support_assessment(c_commit_counts, c_path_items)
                 claim_audits.append(
                     ClaimAuthorshipAudit(
                         claim_id=claim.claim_id,
                         statement=sanitize_text(claim.statement, config.policy).text,
-                        support_verdict=_derive_support_verdict(c_commit_counts, c_paths),
+                        support_verdict=c_verdict,
+                        self_share=c_share,
                         commit_support_counts=dict(sorted(c_commit_counts.items())),
-                        path_support_counts=dict(sorted(c_paths.items())),
+                        path_support_counts=dict(sorted(c_path_counts.items())),
                     )
                 )
 
+            w_verdict, w_share = _derive_support_assessment(work_commit_counts, work_path_items)
             work_audits.append(
                 WorkAuthorshipAudit(
                     work_id=work.work_id,
                     title=sanitize_text(work.title, config.policy).text,
-                    assessment=_derive_support_verdict(work_commit_counts, work_path_counts),
+                    assessment=w_verdict,
+                    self_share=w_share,
                     referenced_commit_counts=dict(sorted(work_commit_counts.items())),
                     referenced_path_counts=dict(sorted(work_path_counts.items())),
                     referenced_components=sorted(work_components),

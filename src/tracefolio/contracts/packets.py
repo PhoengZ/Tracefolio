@@ -46,7 +46,12 @@ class InvestigationPacket(Artifact):
 
 class ExcludedEvidence(StrictModel):
     evidence_id: str
-    reason: Literal["irrelevant_to_work", "duplicate_context", "unavailable_content"]
+    reason: Literal[
+        "irrelevant_to_work",
+        "duplicate_context",
+        "unavailable_content",
+        "other_authored",
+    ]
 
 
 class AnalysisProposal(Artifact):

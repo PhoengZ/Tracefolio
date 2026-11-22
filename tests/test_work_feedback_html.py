@@ -328,6 +328,14 @@ const auditExport = Core.buildFeedbackExport(merged.works, fbMap, { reviewedOnly
 assert.strictEqual(auditExport[0].risk_bucket, "low_risk");
 assert.strictEqual(auditExport[1].risk_bucket, "suspected_fp");
 assert.strictEqual(auditExport[1].audit_assessment, "other_authored_only");
+
+// 11. minor_touch_only -> suspected_fp; high self_share local shared (>=65%, no other_account) -> low_risk
+const extraAudit = {
+  "p::minor": { assessment: "minor_touch_only", self_share: 0.08, referenced_commit_counts: { unmatched_local_author: 4 }, referenced_path_counts: { shared: 1, unmatched_local_author: 10 } },
+  "p::dominant": { assessment: "shared_supported", self_share: 0.88, referenced_commit_counts: { self: 9 }, referenced_path_counts: { self: 12, shared: 2 } }
+};
+assert.strictEqual(Core.classifyWorkRisk({ key: "p::minor" }, extraAudit).bucket, "suspected_fp");
+assert.strictEqual(Core.classifyWorkRisk({ key: "p::dominant" }, extraAudit).bucket, "low_risk");
 """
     script = core_js + "\n" + driver
     script_path = tmp_path / "feedback_core_driver.js"
