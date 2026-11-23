@@ -107,9 +107,9 @@ Install the optional local RenderCV toolchain once inside `.venv` if not already
 ### Style rules (modeled on `.superpowers/Resume ตัวอย่าง.jpg`)
 
 - **Single-column classic serif ATS layout:** Use RenderCV `design.theme: harvard` (serif `XCharter` font, centered name/contact header with `display_urls_instead_of_usernames: true`, centered bold ALL-CAPS section keys `EDUCATION`, `EXPERIENCE`, `PROJECTS`, `TECHNICAL SKILLS` with full-width `0.6pt` horizontal rules, left-aligned titles/roles, right-aligned dates with `locale.present: Present`).
-- **Mandatory baseline typography & 1-page geometry:** Start every resume from these verified font sizes and margins so output stays consistent across LLM harnesses:
-  - **Page:** `size: us-letter`, `top_margin: 0.38in`, `bottom_margin: 0.38in`, `left_margin: 0.45in`, `right_margin: 0.45in`, `show_footer: false`, `show_top_note: false`
-  - **Font sizes & spacing:** `body: 9pt` (only tune within `8.8pt`–`9.2pt` if needed for 1-page balance; never go below `8.8pt`), `name: 19pt`, `connections: 8.3pt`, `section_titles: 1.12em`, `line_spacing: 0.48em`
+- **Mandatory baseline typography & symmetric 1-page geometry:** Start every resume from these verified font sizes and symmetric margins so output stays consistent across LLM harnesses:
+  - **Page:** `size: us-letter`, symmetric vertical margins `top_margin == bottom_margin` starting at `0.38in` (tunable symmetrically within `0.38in`–`0.55in` during Step 6 vertical balancing so top and bottom white bands stay visually equal), `left_margin: 0.45in`, `right_margin: 0.45in`, `show_footer: false`, `show_top_note: false`
+  - **Font sizes & spacing:** `body: 9pt` (tunable within `8.8pt`–`9.4pt` for 1-page balance; never go below `8.8pt`), `name: 19pt`, `connections: 8.3pt`, `section_titles: 1.12em`, `line_spacing: 0.48em` (tunable within `0.46em`–`0.54em`; vertical spacing levers `section_titles.space_above/below`, `sections.space_between_regular_entries`, `entries.highlights.space_between_items`, and `header.space_below_*` may be tuned modestly for Top-vs-Bottom symmetry without creating loose gaps)
   - **Templates, links & bullets:** Override `education_entry` with `degree_column: ""` (prevents duplicating degree abbreviations) and `experience_entry` with `**COMPANY** — *POSITION* (LOCATION)`. Use bold lead-in topic labels (`**Topic:** ...`) in highlights.
   - **Clickable public project links (no underline):** Whenever a selected project in `PROJECTS` has a verified public `url` in `resumes/profile.yaml` (`projects_meta[].url`), format its `name` as a Markdown hyperlink **`[Project Name](https://...) — Role (Category)`** so clicking the title in the PDF opens the public repo or site. Set `design.links.underline: false` and `design.links.show_external_link_icon: false` so links stay visually clean while remaining clickable. Leave private/local projects as plain text without URLs.
 - **Mandatory exclusion:** **NEVER include citizenship, visa, or work-authorization statements** (specifically omit footer notes like `Not a US Citizen; Approved I-140; Require H1-B transfer` from the reference image).
@@ -225,21 +225,27 @@ settings:
 
 ---
 
-## Step 6 — Render PDF & PNG + verification loop
+## Step 6 — Render PDF & PNG + Top-vs-Bottom whitespace symmetry verification loop
 
-Write the YAML file to the Git-ignored private path `resumes/Resume-<Position>/resume.yaml` and render PDF + PNG (note that RenderCV v2.8 resolves `-o` relative to the input YAML file's parent directory):
+Write the YAML file to the Git-ignored private path `resumes/Resume-<Position>/resume.yaml`, clear stale PNG/PDF files inside `resumes/Resume-<Position>/output/` if regenerating, and render PDF + PNG (note that RenderCV v2.8 resolves `-o` relative to the input YAML file's parent directory):
 
 ```powershell
 ./.venv/Scripts/rendercv.exe render resumes/Resume-<Position>/resume.yaml -o output --dont-generate-markdown --dont-generate-html
+./.venv/Scripts/python.exe tools/check_resume_layout.py resumes/Resume-<Position>/output
 ```
 
 Run all checks before presenting the final PDF to the user:
 
 1. **Schema validation:** Confirm `rendercv render` exits with code `0`. If Pydantic reports a validation error, fix the reported YAML field and re-render.
-2. **Exact 1-page & priority-fill check:** Inspect `resumes/Resume-<Position>/output/` and confirm **exactly 1 PNG page** (`*_1.png` only, no `*_2.png`).
-   - **If content spills onto page 2:** Tighten bullet phrasing or adjust vertical spacing in `design:` and re-render until it fits cleanly on 1 page.
-   - **If significant bottom whitespace remains on page 1 (> ~10% of page height, with room for another entry without shrinking body font below `8.8pt`):** Prioritize filling space with substantive work rather than inflating `TECHNICAL SKILLS` or stretching spacing. If `EXPERIENCE` cannot be expanded further with real evidence, pull the next highest-priority **role-relevant** project from the Step 4 Priority Queue (matching Step 2 criteria and verified ownership), insert it into `PROJECTS` in **reverse-chronological order (most recent on top)**, keep `TECHNICAL SKILLS` wrapped concisely to 3–4 lines, re-render, and re-inspect the PNG until page utilization reaches a clean, balanced **~92–97%** on 1 page. Never pad with off-track projects solely to fill whitespace.
-3. **Visual check:** Read the generated PNG image to verify typography, alignment, margins, page balance, no awkward line wraps, no citizenship/visa footer, and no AI-disclosure text.
+2. **Exact 1-page & Top-vs-Bottom Whitespace Symmetry Gate (MANDATORY):** Run `tools/check_resume_layout.py resumes/Resume-<Position>/output` and require exit code **`0` (`PASS`)**. The script measures actual rendered ink bounds directly from the PNG (matching human visual perception) and enforces:
+   - **Exact 1 page:** `png_count == 1` (`*_1.png` only, no `*_2.png` and no duplicate stale PNGs in `output/`).
+   - **No edge crowding:** `top_in >= 0.32in`, `bottom_in >= 0.32in`, and `bottom_in >= top_in - 0.12in`.
+   - **Top-vs-Bottom symmetry:** `bottom_in / top_in <= 1.45` (ideal visual target `0.95`–`1.30`) **AND** `|bottom_in - top_in| <= 0.22in` (~`2%` of US-Letter page height).
+   - **Remediation ladder when `check_resume_layout.py` returns `FAIL`:**
+     - **If `TIGHTEN_TO_1_PAGE` (content spills onto page 2) or `REDUCE_BOTTOM_CROWDING`:** Tighten verbose bullet phrasing or slightly reduce vertical spacing / symmetric margins (never shrink `body` below `8.8pt`) and re-render.
+     - **Stage A — Content-First Fill (`ADD_CONTENT_OR_INCREASE_VERTICAL_BALANCE`, when `bottom_in - top_in >= 0.55in`):** Prioritize substantive evidence before adjusting margins. If `EXPERIENCE` can be enriched with real saved evidence or a genuinely role-relevant project remains in the Step 4 Priority Queue (verified ownership, matching Step 2 criteria), add it into `PROJECTS` in **reverse-chronological order (most recent on top)** while keeping `TECHNICAL SKILLS` wrapped concisely to 3–4 lines, re-render, and re-run `check_resume_layout.py`. Never pad with off-track projects or fabricated claims solely to fill whitespace.
+     - **Stage B — Symmetric Framing & Micro-Spacing Calibration (`CALIBRATE_SYMMETRIC_MARGINS_OR_SPACING`, or after Stage A when remaining content is optimal and adding another entry would overflow page 2):** Adjust `top_margin == bottom_margin` symmetrically within `0.38in`–`0.55in` (increasing both margins by `Δ` preserves horizontal line wraps while closing the `bottom - top` gap by `2Δ`) and fine-tune vertical rhythm within safe typographic bounds (`body: 8.8pt`–`9.4pt`, `line_spacing: 0.46em`–`0.54em`, `section_titles.space_above/below`, `sections.space_between_regular_entries`, `entries.highlights.space_between_items`, `header.space_below_*`), then re-render and re-run `check_resume_layout.py` until `PASS` (`bottom/top <= 1.45` and `|bottom - top| <= 0.22in`).
+3. **Visual check:** Read the generated PNG image to verify typography, alignment, balanced top/bottom whitespace, no awkward line wraps or single-word orphan lines, no citizenship/visa footer, and no AI-disclosure text.
 4. **Data-leak check:** Run `git status --short` in the `tracfolio` checkout and confirm zero files from `docs/Resume.pdf`, `resumes/`, or `rendercv_output/` appear as tracked or untracked.
 
 ---
@@ -300,11 +306,15 @@ jobs:
           for yaml in Resume-*/resume.yaml; do
             dir="$(dirname "$yaml")"
             echo "Rendering $yaml -> $dir/output"
+            rm -f "$dir"/output/*.png
             rendercv render "$yaml" -o output --dont-generate-markdown --dont-generate-html
             png_count=$(find "$dir/output" -maxdepth 1 -name '*.png' | wc -l)
             if [ "$png_count" -ne 1 ]; then
               echo "::error::Expected 1 page for $yaml, found $png_count PNG pages."
               exit 1
+            fi
+            if [ -f "scripts/check_resume_layout.py" ]; then
+              python scripts/check_resume_layout.py "$dir/output"
             fi
           done
 
