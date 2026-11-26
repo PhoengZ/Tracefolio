@@ -9,6 +9,7 @@ from .investigation import create_packet, extend_packet
 from .portfolio import brief_portfolio, export_portfolio, summarize_portfolio
 from .private_config import load_config_set, selected_config_paths
 from .proposals import apply_proposal
+from .reviews import apply_review_feedback
 from .sources.base import ContextRequest
 from .state import StateStore
 from .status import inspect_project
@@ -58,6 +59,10 @@ def parser():
     select.add_argument("--all", action="store_true")
     select.add_argument("--project", action="append")
     authorship.add_argument("--out")
+    review = commands.add_parser("review")
+    review_sub = review.add_subparsers(dest="review_command", required=True)
+    review_apply = review_sub.add_parser("apply")
+    review_apply.add_argument("--feedback", required=True)
     return root
 
 
@@ -110,6 +115,9 @@ def main(argv=None) -> int:
             return 3 if any(e.status not in {"ready", "disabled"} for e in result.entries) else 0
         if args.command == "apply":
             emit(apply_proposal(store, args.proposal).as_dict())
+            return 0
+        if args.command == "review":
+            emit(apply_review_feedback(store, args.feedback).model_dump(mode="json"))
             return 0
         if args.command == "packet":
             result = create_packet(store, args.project, work_id=args.work)

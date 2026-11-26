@@ -93,6 +93,14 @@ Private state can optionally live at the validated Git-ignored `.tracefolio-loca
 
 Open [tools/work-feedback.html](tools/work-feedback.html) directly in a local browser (offline only, no network calls) to review works without inspecting raw JSON by hand. It accepts `.jsonl` files (such as the synthetic [examples/works.example.jsonl](examples/works.example.jsonl)), `summarize --all --format json` / `--view brief` portfolio JSON, individual `works/*.json` files, folder uploads, or pasted JSON/JSONL, and exports structured feedback (`.jsonl` / `.json`) with correctness/ownership verdicts and reasons. You can also attach an `audit authorship` JSON export (`+ Attach Authorship Audit (.json)` or drag-and-drop alongside portfolio JSON) to surface Layer 1 component breakdowns and filter directly to risky False Positive / False Negative works.
 
+To persist confirmed human reviews (`verdict == "correct"`) back into private state without weakening the LLM `machine_review_forbidden` guard on `apply --proposal`, run:
+
+```text
+tracefolio review apply --feedback <absolute-private-feedback-file>
+```
+
+Confirmed works become `review_status: "user_reviewed"` in a new immutable generation (preserving `record_revision` so repeated imports are idempotent and only matching revisions are accepted). Any subsequent source invalidation or LLM proposal update automatically resets only the modified work back to `"unreviewed"`. Works already marked `"user_reviewed"` in `portfolio.json` are recognized automatically in `tools/work-feedback.html`.
+
 ## Optional resume generation (private local checkout)
 
 Tracefolio keeps personal career details and generated resumes strictly out of this public repository. To enable explicit LLM-guided resume generation using your saved `.tracefolio-local` work knowledge and [RenderCV](https://rendercv.com/):

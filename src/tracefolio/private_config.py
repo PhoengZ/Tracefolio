@@ -229,3 +229,13 @@ def validate_proposal_path(config: ResolvedConfig, path: Path) -> Path:
         return target
     return validate_export_path(config, path)
 
+
+def validate_feedback_path(config: ResolvedConfig, path: Path) -> Path:
+    reject_links(path)
+    target = _absolute(str(path))
+    for subdir in ('feedback', 'exports'):
+        if target.is_relative_to(config.state_root / subdir):
+            validate_state_location(config.state_root, config.local_state_checkout)
+            return target
+    return validate_export_path(config, path)
+

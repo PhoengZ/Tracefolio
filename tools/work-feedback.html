@@ -1500,9 +1500,10 @@
         };
       }
 
-      function createFeedbackEntry(verdict, reason, ownershipOverride, timestamp) {
+      function createFeedbackEntry(verdict, reason, ownershipOverride, timestamp, meta) {
         const safeVerdict = VALID_VERDICTS.has(verdict) ? verdict : "unreviewed";
         const defaults = VERDICT_DEFAULTS[safeVerdict];
+        const opts = meta || {};
         let ownership = defaults.ownership_confirmed;
         if (safeVerdict === "misunderstood" && (ownershipOverride === true || ownershipOverride === false || ownershipOverride === null)) {
           ownership = ownershipOverride;
@@ -1512,7 +1513,55 @@
           is_correct: defaults.is_correct,
           ownership_confirmed: ownership,
           reason: typeof reason === "string" ? reason : "",
-          reviewed_at: safeVerdict === "unreviewed" ? null : (timestamp || new Date().toISOString())
+          reviewed_at: safeVerdict === "unreviewed" ? null : (timestamp || new Date().toISOString()),
+          record_revision: typeof opts.record_revision === "number" ? opts.record_revision : null,
+          from_state_review: Boolean(opts.from_state_review)
+        };
+      }
+
+      function syncFeedbackWithWorks(works, feedbackMap) {
+        const nextMap = Object.assign({}, feedbackMap || {});
+        let syncedFromState = 0;
+        let resetOnRevision = 0;
+        for (const work of works || []) {
+          const fb = nextMap[work.key];
+          const revChanged = Boolean(
+            fb
+            && typeof fb.record_revision === "number"
+            && typeof work.record_revision === "number"
+            && fb.record_revision !== work.record_revision
+          );
+          if (revChanged) {
+            if (work.review_status === "user_reviewed") {
+              nextMap[work.key] = createFeedbackEntry("correct", "", undefined, work.generated_at || null, {
+                record_revision: work.record_revision,
+                from_state_review: true
+              });
+              syncedFromState += 1;
+            } else {
+              delete nextMap[work.key];
+              resetOnRevision += 1;
+            }
+            continue;
+          }
+          if (fb && fb.from_state_review && work.review_status !== "user_reviewed") {
+            delete nextMap[work.key];
+            resetOnRevision += 1;
+            continue;
+          }
+          const isEmptyFeedback = !fb || (fb.verdict === "unreviewed" && !String(fb.reason || "").trim());
+          if (isEmptyFeedback && work.review_status === "user_reviewed") {
+            nextMap[work.key] = createFeedbackEntry("correct", "", undefined, work.generated_at || null, {
+              record_revision: work.record_revision,
+              from_state_review: true
+            });
+            syncedFromState += 1;
+          }
+        }
+        return {
+          feedbackMap: nextMap,
+          syncedFromState: syncedFromState,
+          resetOnRevision: resetOnRevision
         };
       }
 
@@ -1549,7 +1598,8 @@
             verdict,
             typeof item.reason === "string" ? item.reason : "",
             item.ownership_confirmed,
-            typeof item.reviewed_at === "string" ? item.reviewed_at : null
+            typeof item.reviewed_at === "string" ? item.reviewed_at : null,
+            { record_revision: typeof item.record_revision === "number" ? item.record_revision : null }
           );
           records.push({
             project_id: typeof item.project_id === "string" && item.project_id.trim() ? item.project_id.trim() : null,
@@ -1702,6 +1752,7 @@
         parseWorksText: parseWorksText,
         mergeWorks: mergeWorks,
         createFeedbackEntry: createFeedbackEntry,
+        syncFeedbackWithWorks: syncFeedbackWithWorks,
         parseFeedbackText: parseFeedbackText,
         applyFeedbackRecords: applyFeedbackRecords,
         computeStats: computeStats,
@@ -1986,10 +2037,12 @@
 
       function setVerdict(workKey, verdict, ownershipOverride) {
         const current = state.feedback[workKey];
+        const work = state.works.find((w) => w.key === workKey);
+        const workRev = work && typeof work.record_revision === "number" ? work.record_revision : null;
         const reason = current ? current.reason : "";
         if (verdict === "unreviewed") {
           if (reason.trim()) {
-            state.feedback[workKey] = Core.createFeedbackEntry("unreviewed", reason, null, null);
+            state.feedback[workKey] = Core.createFeedbackEntry("unreviewed", reason, null, null, { record_revision: workRev });
           } else {
             delete state.feedback[workKey];
           }
@@ -1999,7 +2052,10 @@
             : (verdict === "misunderstood" && current && current.verdict === "misunderstood"
                 ? current.ownership_confirmed
                 : undefined);
-          state.feedback[workKey] = Core.createFeedbackEntry(verdict, reason, nextOwnership);
+          state.feedback[workKey] = Core.createFeedbackEntry(verdict, reason, nextOwnership, null, {
+            record_revision: workRev,
+            from_state_review: false
+          });
         }
         persistSession();
         updateStats();
@@ -2450,6 +2506,8 @@
         }
         const merged = Core.mergeWorks(state.works, incoming);
         state.works = merged.works;
+        const synced = Core.syncFeedbackWithWorks(state.works, state.feedback);
+        state.feedback = synced.feedbackMap;
         let riskStats = null;
         if (detectedAudit) {
           riskStats = applyAuditOverlay(detectedAudit, detectedAuditLabel);
@@ -2471,6 +2529,12 @@
         const parts = [];
         if (incoming.length > 0 || !detectedAudit) {
           parts.push("นำเข้า Work สำเร็จ: เพิ่มใหม่ " + merged.added + " รายการ, อัปเดต " + merged.updated + " รายการ");
+        }
+        if (synced.syncedFromState > 0) {
+          parts.push("ซิงก์สถานะตรวจแล้วจาก State " + synced.syncedFromState + " รายการ");
+        }
+        if (synced.resetOnRevision > 0) {
+          parts.push("รีเซ็ตสถานะเดิมเมื่อเนื้อหาอัปเดต " + synced.resetOnRevision + " รายการ");
         }
         if (riskStats && riskStats.has_audit) {
           parts.push("แนบ Authorship Audit แล้ว — พบกลุ่มเสี่ยง " + riskStats.total_risky + " รายการ (FP: " + riskStats.suspected_fp + ", FN/อื่นๆ: " + riskStats.suspected_fn + ") และกรองแสดงเฉพาะกลุ่มเสี่ยงให้แล้ว");
@@ -2584,6 +2648,8 @@
         }
         const merged = Core.mergeWorks(state.works, res.works);
         state.works = merged.works;
+        const synced = Core.syncFeedbackWithWorks(state.works, state.feedback);
+        state.feedback = synced.feedbackMap;
         persistSession();
         updateProjectDropdown();
         updateStats();

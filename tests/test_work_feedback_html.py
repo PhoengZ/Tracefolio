@@ -362,6 +362,21 @@ assert.strictEqual(resExOther.is_risky, false);
 const resExMinor = Core.classifyWorkRisk(excludedWorkMinor, extraAudit);
 assert.strictEqual(resExMinor.bucket, "low_risk");
 assert.strictEqual(resExMinor.is_risky, false);
+
+// 13. Sync state user_reviewed automatically and reset stale local verdict when record_revision changes
+const stateWorks = [
+  { key: "p::already-reviewed", project_id: "p", work_id: "already-reviewed", record_revision: 2, review_status: "user_reviewed", generated_at: "2026-11-26T00:00:00Z" },
+  { key: "p::updated-work", project_id: "p", work_id: "updated-work", record_revision: 3, review_status: "unreviewed", generated_at: "2026-11-26T00:00:00Z" }
+];
+const priorLocalFb = {
+  "p::updated-work": Core.createFeedbackEntry("correct", "", undefined, "2026-11-20T00:00:00Z", { record_revision: 2 })
+};
+const syncRes = Core.syncFeedbackWithWorks(stateWorks, priorLocalFb);
+assert.strictEqual(syncRes.syncedFromState, 1);
+assert.strictEqual(syncRes.resetOnRevision, 1);
+assert.strictEqual(syncRes.feedbackMap["p::already-reviewed"].verdict, "correct");
+assert.strictEqual(syncRes.feedbackMap["p::already-reviewed"].from_state_review, true);
+assert.strictEqual(syncRes.feedbackMap["p::updated-work"], undefined);
 """
     script = core_js + "\n" + driver
     script_path = tmp_path / "feedback_core_driver.js"
